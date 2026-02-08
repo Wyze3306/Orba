@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORBA — Conditions Generales de Vente</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0a;
+            --bg-card: #111111;
+            --accent: #a8ff78;
+            --accent-dim: rgba(168,255,120,0.15);
+            --text: #e0e0e0;
+            --text-muted: #888888;
+            --text-dim: #555555;
+            --border: rgba(255,255,255,0.08);
+            --radius: 12px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+        a:hover { opacity: 0.8; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* NAV */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-inner {
+            max-width: 1200px; margin: 0 auto; padding: 0 24px;
+            display: flex; align-items: center; justify-content: space-between; height: 64px;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            color: #fff; font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600; font-size: 1.2rem; text-decoration: none;
+        }
+        .nav-logo svg { color: var(--accent); }
+        .nav-links { display: flex; gap: 28px; }
+        .nav-links a {
+            color: var(--text-muted); font-size: 0.875rem; font-weight: 400;
+            text-decoration: none; transition: color 0.2s;
+        }
+        .nav-links a:hover { color: #fff; opacity: 1; }
+        .nav-cta {
+            padding: 8px 20px; background: var(--accent); color: #0a0a0a;
+            font-weight: 600; font-size: 0.8rem; border-radius: 50px;
+            text-transform: uppercase; letter-spacing: 0.05em; text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(168,255,120,0.3); opacity: 1; }
+
+        /* PAGE HEADER */
+        .page-header {
+            padding: 140px 0 60px; text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-header .section-tag {
+            display: inline-block; font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 0.15em; color: var(--accent); font-weight: 500;
+            margin-bottom: 16px;
+        }
+        .page-header h1 {
+            font-family: 'Space Grotesk', sans-serif; font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 16px;
+        }
+        .page-header h1 em { font-style: normal; color: var(--accent); }
+        .page-header p { font-size: 1.1rem; color: var(--text-muted); max-width: 600px; margin: 0 auto; }
+
+        /* LEGAL CONTENT */
+        .legal-content {
+            max-width: 800px; margin: 0 auto; padding: 60px 0 80px;
+        }
+        .legal-update {
+            font-size: 0.82rem; color: var(--text-dim);
+            margin-bottom: 40px; text-align: center;
+        }
+
+        .legal-content h2 {
+            font-family: 'Space Grotesk', sans-serif; font-size: 1.3rem;
+            font-weight: 600; color: #fff; margin: 48px 0 16px;
+            padding-bottom: 8px; border-bottom: 1px solid var(--border);
+        }
+        .legal-content h2:first-of-type { margin-top: 0; }
+
+        .legal-content h3 {
+            font-family: 'Space Grotesk', sans-serif; font-size: 1rem;
+            font-weight: 600; color: var(--accent); margin: 24px 0 8px;
+        }
+
+        .legal-content p {
+            font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px;
+        }
+
+        .legal-content ul {
+            list-style: none; padding: 0; margin-bottom: 16px;
+        }
+        .legal-content ul li {
+            font-size: 0.9rem; color: var(--text-muted); padding: 4px 0 4px 20px;
+            position: relative;
+        }
+        .legal-content ul li::before {
+            content: ''; position: absolute; left: 0; top: 12px;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--accent); opacity: 0.5;
+        }
+
+        /* FOOTER */
+        .footer { border-top: 1px solid var(--border); padding: 60px 0 30px; }
+        .footer-grid {
+            display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px;
+            margin-bottom: 40px;
+        }
+        .footer-logo {
+            display: flex; align-items: center; gap: 8px;
+            color: #fff; font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600; font-size: 1.1rem; margin-bottom: 12px;
+        }
+        .footer-logo svg { color: var(--accent); }
+        .footer-brand p { font-size: 0.85rem; color: var(--text-muted); max-width: 280px; }
+        .footer-links h4 {
+            font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem;
+            font-weight: 600; color: #fff; margin-bottom: 14px;
+        }
+        .footer-links a {
+            display: block; font-size: 0.82rem; color: var(--text-muted);
+            margin-bottom: 8px; text-decoration: none;
+        }
+        .footer-links a:hover { color: #fff; }
+        .footer-bottom {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-top: 24px; border-top: 1px solid var(--border);
+        }
+        .footer-bottom p { font-size: 0.78rem; color: var(--text-dim); }
+        .footer-social { display: flex; gap: 16px; }
+        .footer-social a { color: var(--text-muted); transition: color 0.2s; }
+        .footer-social a:hover { color: var(--accent); }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+            .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 100 100" fill="none">
+                    <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="50" cy="50" r="30" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                    <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+                    <circle cx="50" cy="50" r="4" fill="currentColor"/>
+                </svg>
+                <span>ORBA</span>
+            </a>
+            <div class="nav-links">
+                <a href="../index.html#concept">Concept</a>
+                <a href="../index.html#explorer">Explorer 3D</a>
+                <a href="../index.html#specs">Specifications</a>
+                <a href="../index.html#smart">Smart Home</a>
+                <a href="../index.html#autonomie">Autonomie</a>
+            </div>
+            <a href="../index.html#reserve" class="nav-cta">Reserver</a>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <div class="container">
+            <span class="section-tag">Legal</span>
+            <h1>Conditions Generales<br>de <em>Vente</em></h1>
+            <p>Les presentes conditions regissent les pre-commandes et ventes de produits ORBA Habitat.</p>
+        </div>
+    </header>
+
+    <!-- Legal Content -->
+    <div class="container">
+        <div class="legal-content">
+            <p class="legal-update">Derniere mise a jour : 1er fevrier 2026</p>
+
+            <h2>Article 1 -- Definitions</h2>
+            <p>Dans les presentes Conditions Generales de Vente (ci-apres "CGV"), les termes suivants ont la signification qui leur est donnee ci-dessous :</p>
+            <ul>
+                <li><strong>"Vendeur"</strong> : ORBA Habitat SAS, societe par actions simplifiee au capital de 100 000 euros, immatriculee au RCS de Paris sous le numero 912 345 678, dont le siege social est situe au 15 rue de la Paix, 75002 Paris, France.</li>
+                <li><strong>"Client"</strong> ou <strong>"Acheteur"</strong> : toute personne physique ou morale qui passe commande sur le site orba-habitat.com.</li>
+                <li><strong>"Produit"</strong> : la sphere d'habitation autonome ORBA One et l'ensemble de ses composants, accessoires et options.</li>
+                <li><strong>"Pre-commande"</strong> : reservation d'un Produit avant sa date de disponibilite commerciale, moyennant le versement d'un acompte.</li>
+                <li><strong>"Site"</strong> : le site internet accessible a l'adresse orba-habitat.com.</li>
+            </ul>
+
+            <h2>Article 2 -- Objet et champ d'application</h2>
+            <p>Les presentes CGV regissent l'ensemble des ventes et pre-commandes de Produits ORBA effectuees sur le Site. Toute commande implique l'acceptation sans reserve des presentes CGV par le Client.</p>
+            <p>Le Vendeur se reserve le droit de modifier les CGV a tout moment. Les CGV applicables sont celles en vigueur a la date de la commande.</p>
+
+            <h2>Article 3 -- Pre-commande</h2>
+            <h3>3.1 Processus de pre-commande</h3>
+            <p>Le Client peut effectuer une pre-commande en ligne sur le Site. La pre-commande est validee apres :</p>
+            <ul>
+                <li>Renseignement des informations personnelles requises (nom, adresse, coordonnees)</li>
+                <li>Acceptation des presentes CGV</li>
+                <li>Paiement de l'acompte de pre-commande</li>
+                <li>Reception d'un email de confirmation de pre-commande</li>
+            </ul>
+
+            <h3>3.2 Acompte</h3>
+            <p>L'acompte de pre-commande est fixe a 2 500 EUR TTC. Ce montant sera deduit du prix final du Produit. L'acompte est remboursable dans les conditions prevues a l'article 7.</p>
+
+            <h3>3.3 File d'attente</h3>
+            <p>Les pre-commandes sont traitees par ordre chronologique de reception. Le Client recevra une estimation de la date de livraison lors de la confirmation de sa pre-commande.</p>
+
+            <h2>Article 4 -- Prix</h2>
+            <p>Les prix sont exprimes en euros toutes taxes comprises (TTC), hors frais de livraison et d'installation. Le prix du Produit ORBA One est indique sur le Site au moment de la commande.</p>
+            <p>Le prix est celui en vigueur au jour de la commande. Le Vendeur se reserve le droit de modifier les prix a tout moment, mais les Produits seront factures au prix indique lors de la validation de la commande.</p>
+            <p>Les frais de livraison et d'installation sont calcules en fonction du lieu d'installation et communiques au Client avant la validation finale de la commande.</p>
+
+            <h2>Article 5 -- Paiement</h2>
+            <p>Le paiement s'effectue selon l'echeancier suivant :</p>
+            <ul>
+                <li><strong>A la pre-commande :</strong> 2 500 EUR TTC (acompte)</li>
+                <li><strong>A la confirmation de production :</strong> 40% du prix total HT</li>
+                <li><strong>A la livraison :</strong> Solde restant</li>
+            </ul>
+            <p>Les paiements sont acceptes par carte bancaire (Visa, Mastercard) et virement bancaire SEPA. Tous les paiements sont securises par un protocole de chiffrement SSL.</p>
+
+            <h2>Article 6 -- Livraison et installation</h2>
+            <h3>6.1 Delais</h3>
+            <p>Le delai de livraison indicatif est communique au Client lors de la confirmation de commande. Il est generalement compris entre 4 et 8 mois apres la confirmation de production, selon la localisation du lieu d'installation.</p>
+
+            <h3>6.2 Installation</h3>
+            <p>L'installation est realisee par une equipe agree ORBA et dure en moyenne 48 heures. Le Client doit s'assurer que le terrain est accessible et conforme aux pre-requis communiques par le Vendeur (acces poids lourd, terrain stabilise, autorisations administratives).</p>
+
+            <h3>6.3 Transfert de propriete</h3>
+            <p>Le transfert de propriete du Produit au Client n'intervient qu'apres le paiement integral du prix. Le transfert des risques s'effectue a la livraison sur site.</p>
+
+            <h2>Article 7 -- Droit de retractation</h2>
+            <p>Conformement aux articles L.221-18 et suivants du Code de la consommation, le Client dispose d'un delai de quatorze (14) jours a compter de la date de conclusion du contrat de pre-commande pour exercer son droit de retractation, sans avoir a justifier de motif.</p>
+            <p>Passe ce delai, l'acompte de pre-commande n'est pas remboursable, sauf dans les cas suivants :</p>
+            <ul>
+                <li>Retard de livraison superieur a 3 mois par rapport a la date estimee</li>
+                <li>Non-conformite majeure du Produit par rapport aux specifications annoncees</li>
+                <li>Annulation de la commande par le Vendeur</li>
+            </ul>
+
+            <h2>Article 8 -- Garanties</h2>
+            <h3>8.1 Garantie legale de conformite</h3>
+            <p>Le Vendeur est tenu de livrer un Produit conforme au contrat et repond des defauts de conformite conformement aux articles L.217-4 et suivants du Code de la consommation. La garantie legale de conformite s'applique pendant deux (2) ans a compter de la livraison du Produit.</p>
+
+            <h3>8.2 Garantie des vices caches</h3>
+            <p>Le Vendeur est tenu de la garantie des vices caches conformement aux articles 1641 et suivants du Code civil.</p>
+
+            <h3>8.3 Garantie commerciale</h3>
+            <p>En complement des garanties legales, le Vendeur offre les garanties commerciales suivantes :</p>
+            <ul>
+                <li><strong>Structure :</strong> 20 ans sur la coque geodesique et le socle</li>
+                <li><strong>Etancheite :</strong> 10 ans</li>
+                <li><strong>Equipements techniques :</strong> 5 ans (PAC, onduleur, domotique)</li>
+                <li><strong>Panneaux solaires :</strong> 25 ans (performance a 80%)</li>
+                <li><strong>Batterie :</strong> 10 ans ou 4 000 cycles</li>
+            </ul>
+
+            <h2>Article 9 -- Responsabilite</h2>
+            <p>Le Vendeur ne saurait etre tenu responsable des dommages resultant d'une mauvaise utilisation du Produit, du non-respect des consignes d'utilisation et d'entretien, de modifications effectuees par le Client ou un tiers non agree, ou d'un cas de force majeure.</p>
+            <p>La responsabilite du Vendeur est limitee au montant total paye par le Client pour le Produit concerne.</p>
+
+            <h2>Article 10 -- Donnees personnelles</h2>
+            <p>Le traitement des donnees personnelles du Client est regi par notre <a href="privacy.html">Politique de Confidentialite</a>, accessible sur le Site.</p>
+
+            <h2>Article 11 -- Droit applicable et litiges</h2>
+            <p>Les presentes CGV sont soumises au droit francais. En cas de litige, le Client peut recourir a une procedure de mediation conventionnelle ou a tout autre mode alternatif de reglement des differends.</p>
+            <p>A defaut de resolution amiable, le litige sera porte devant les tribunaux competents du ressort de la Cour d'appel de Paris.</p>
+
+            <h2>Article 12 -- Contact</h2>
+            <p>Pour toute question relative aux presentes CGV, le Client peut contacter le Vendeur :</p>
+            <ul>
+                <li>Par email : <a href="mailto:contact@orba-habitat.com">contact@orba-habitat.com</a></li>
+                <li>Par courrier : ORBA Habitat SAS, 15 rue de la Paix, 75002 Paris, France</li>
+                <li>Par telephone : +46 8 123 45 67</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
+                            <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="2"/>
+                            <circle cx="50" cy="50" r="30" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                            <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+                            <circle cx="50" cy="50" r="4" fill="currentColor"/>
+                        </svg>
+                        <span>ORBA</span>
+                    </div>
+                    <p>L'habitat autonome du futur. Concu en Scandinavie, assemble avec soin, installe partout.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Produit</h4>
+                    <a href="../index.html#concept">Concept</a>
+                    <a href="../index.html#specs">Specifications</a>
+                    <a href="../index.html#smart">Smart Home</a>
+                    <a href="../index.html#reserve">Prix</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Entreprise</h4>
+                    <a href="about.html">A propos</a>
+                    <a href="press.html">Presse</a>
+                    <a href="careers.html">Carrieres</a>
+                    <a href="contact.html">Contact</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <a href="cgv.html">CGV</a>
+                    <a href="privacy.html">Confidentialite</a>
+                    <a href="cookies.html">Cookies</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ORBA. Tous droits reserves.</p>
+                <div class="footer-social">
+                    <a href="https://instagram.com/orba.habitat" target="_blank" rel="noopener" aria-label="Instagram">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                    </a>
+                    <a href="https://x.com/orba_habitat" target="_blank" rel="noopener" aria-label="Twitter/X">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l16 16M20 4L4 20"/></svg>
+                    </a>
+                    <a href="https://linkedin.com/company/orba-habitat" target="_blank" rel="noopener" aria-label="LinkedIn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M8 11v5M8 8v.01M12 16v-5a2 2 0 014 0v5"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

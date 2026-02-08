@@ -1,0 +1,10 @@
+# Windows system / invalid paths
+nul
+CON
+PRN
+AUX
+COM*
+LPT*
+Thumbs.db
+desktop.ini
+

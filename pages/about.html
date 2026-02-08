@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORBA — A propos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0a;
+            --bg-card: #111111;
+            --bg-card-hover: #161616;
+            --accent: #a8ff78;
+            --accent-dim: rgba(168,255,120,0.15);
+            --text: #e0e0e0;
+            --text-muted: #888888;
+            --text-dim: #555555;
+            --border: rgba(255,255,255,0.08);
+            --radius: 12px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+        a:hover { opacity: 0.8; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* NAV */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(10,10,10,0.85); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-inner {
+            max-width: 1200px; margin: 0 auto; padding: 0 24px;
+            display: flex; align-items: center; justify-content: space-between; height: 64px;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            color: #fff; font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600; font-size: 1.2rem; text-decoration: none;
+        }
+        .nav-logo svg { color: var(--accent); }
+        .nav-links { display: flex; gap: 28px; }
+        .nav-links a {
+            color: var(--text-muted); font-size: 0.875rem; font-weight: 400;
+            text-decoration: none; transition: color 0.2s;
+        }
+        .nav-links a:hover { color: #fff; opacity: 1; }
+        .nav-cta {
+            padding: 8px 20px; background: var(--accent); color: #0a0a0a;
+            font-weight: 600; font-size: 0.8rem; border-radius: 50px;
+            text-transform: uppercase; letter-spacing: 0.05em; text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(168,255,120,0.3); opacity: 1; }
+
+        /* PAGE HEADER */
+        .page-header {
+            padding: 140px 0 60px; text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-header .section-tag {
+            display: inline-block; font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 0.15em; color: var(--accent); font-weight: 500;
+            margin-bottom: 16px;
+        }
+        .page-header h1 {
+            font-family: 'Space Grotesk', sans-serif; font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 16px;
+        }
+        .page-header h1 em { font-style: normal; color: var(--accent); }
+        .page-header p { font-size: 1.1rem; color: var(--text-muted); max-width: 600px; margin: 0 auto; }
+
+        /* SECTIONS */
+        .section { padding: 80px 0; }
+        .section + .section { border-top: 1px solid var(--border); }
+
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif; font-size: 1.6rem;
+            font-weight: 600; color: #fff; margin-bottom: 24px;
+        }
+        .section-title em { font-style: normal; color: var(--accent); }
+
+        /* MISSION */
+        .mission-quote {
+            font-family: 'Space Grotesk', sans-serif; font-size: clamp(1.3rem, 3vw, 1.8rem);
+            font-weight: 500; color: #fff; text-align: center;
+            max-width: 700px; margin: 0 auto 60px;
+            padding: 40px 0;
+            position: relative;
+        }
+        .mission-quote::before {
+            content: '';
+            display: block; width: 40px; height: 3px; background: var(--accent);
+            margin: 0 auto 24px; border-radius: 2px;
+        }
+
+        /* STORY */
+        .story-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+            align-items: start; margin-bottom: 60px;
+        }
+        .story-text p { margin-bottom: 16px; color: var(--text-muted); font-size: 0.95rem; }
+        .story-visual {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 40px; text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 20px;
+        }
+        .story-visual svg { color: var(--accent); }
+        .story-visual p { font-size: 0.85rem; color: var(--text-muted); }
+
+        /* VALUES */
+        .values-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+            margin-top: 32px;
+        }
+        .value-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 28px 20px; text-align: center;
+            transition: border-color 0.3s, transform 0.3s;
+        }
+        .value-card:hover { border-color: rgba(168,255,120,0.25); transform: translateY(-4px); }
+        .value-icon {
+            width: 48px; height: 48px; margin: 0 auto 16px;
+            background: var(--accent-dim); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--accent);
+        }
+        .value-card h3 {
+            font-family: 'Space Grotesk', sans-serif; font-size: 1rem;
+            font-weight: 600; color: #fff; margin-bottom: 8px;
+        }
+        .value-card p { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
+        /* TEAM */
+        .team-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+            margin-top: 32px;
+        }
+        .team-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 28px 20px; text-align: center;
+            transition: border-color 0.3s;
+        }
+        .team-card:hover { border-color: rgba(168,255,120,0.2); }
+        .team-avatar {
+            width: 64px; height: 64px; border-radius: 50%;
+            background: linear-gradient(135deg, rgba(168,255,120,0.15), rgba(168,255,120,0.05));
+            border: 1px solid rgba(168,255,120,0.2); margin: 0 auto 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+            color: var(--accent); font-size: 1.3rem;
+        }
+        .team-card h3 {
+            font-family: 'Space Grotesk', sans-serif; font-size: 0.95rem;
+            font-weight: 600; color: #fff; margin-bottom: 4px;
+        }
+        .team-card .role { font-size: 0.8rem; color: var(--accent); font-weight: 500; margin-bottom: 8px; }
+        .team-card p { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+
+        /* FOOTER */
+        .footer { border-top: 1px solid var(--border); padding: 60px 0 30px; }
+        .footer-grid {
+            display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px;
+            margin-bottom: 40px;
+        }
+        .footer-logo {
+            display: flex; align-items: center; gap: 8px;
+            color: #fff; font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600; font-size: 1.1rem; margin-bottom: 12px;
+        }
+        .footer-logo svg { color: var(--accent); }
+        .footer-brand p { font-size: 0.85rem; color: var(--text-muted); max-width: 280px; }
+        .footer-links h4 {
+            font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem;
+            font-weight: 600; color: #fff; margin-bottom: 14px;
+        }
+        .footer-links a {
+            display: block; font-size: 0.82rem; color: var(--text-muted);
+            margin-bottom: 8px; text-decoration: none;
+        }
+        .footer-links a:hover { color: #fff; }
+        .footer-bottom {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-top: 24px; border-top: 1px solid var(--border);
+        }
+        .footer-bottom p { font-size: 0.78rem; color: var(--text-dim); }
+        .footer-social { display: flex; gap: 16px; }
+        .footer-social a { color: var(--text-muted); transition: color 0.2s; }
+        .footer-social a:hover { color: var(--accent); }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .story-grid { grid-template-columns: 1fr; gap: 32px; }
+            .values-grid, .team-grid { grid-template-columns: 1fr 1fr; }
+            .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
+            .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
+        }
+        @media (max-width: 480px) {
+            .values-grid, .team-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-logo">
+                <svg width="32" height="32" viewBox="0 0 100 100" fill="none">
+                    <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="50" cy="50" r="30" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                    <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+                    <circle cx="50" cy="50" r="4" fill="currentColor"/>
+                </svg>
+                <span>ORBA</span>
+            </a>
+            <div class="nav-links">
+                <a href="../index.html#concept">Concept</a>
+                <a href="../index.html#explorer">Explorer 3D</a>
+                <a href="../index.html#specs">Specifications</a>
+                <a href="../index.html#smart">Smart Home</a>
+                <a href="../index.html#autonomie">Autonomie</a>
+            </div>
+            <a href="../index.html#reserve" class="nav-cta">Reserver</a>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <div class="container">
+            <span class="section-tag">A propos</span>
+            <h1>Reinventer l'habitat<br>pour un monde <em>autonome.</em></h1>
+            <p>Decouvrez l'histoire, la mission et l'equipe derriere ORBA -- la sphere d'habitation autonome du futur.</p>
+        </div>
+    </header>
+
+    <!-- Mission -->
+    <section class="section">
+        <div class="container">
+            <div class="mission-quote">
+                "Reinventer l'habitat pour un monde autonome."
+            </div>
+
+            <div class="story-grid">
+                <div class="story-text">
+                    <h2 class="section-title">Notre <em>histoire</em></h2>
+                    <p>ORBA est nee en 2022, dans un atelier de design au coeur de la Scandinavie. Fondee par une equipe d'architectes et d'ingenieurs passionnes par l'habitat durable, notre mission etait simple mais ambitieuse : creer un habitat completement autonome, ecologique et beau.</p>
+                    <p>Frustres par les compromis imposes par la construction traditionnelle -- inefficience energetique, dependance aux reseaux, empreinte carbone excessive -- nous avons imagine une solution radicalement differente : une sphere d'habitation qui genere sa propre energie, recycle son eau, et s'installe partout en 48 heures.</p>
+                    <p>Apres trois ans de recherche, de prototypage et de tests en conditions extremes (du cercle arctique aux deserts mediterraneens), ORBA One est prete a changer votre facon de vivre.</p>
+                </div>
+                <div class="story-visual">
+                    <svg width="120" height="120" viewBox="0 0 100 100" fill="none">
+                        <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="1.5"/>
+                        <circle cx="50" cy="50" r="30" stroke="currentColor" stroke-width="1" opacity="0.6"/>
+                        <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="0.8" opacity="0.3"/>
+                        <circle cx="50" cy="50" r="5" fill="currentColor" opacity="0.5"/>
+                        <path d="M15 50 Q50 15 85 50" stroke="currentColor" stroke-width="0.8" opacity="0.4" fill="none"/>
+                        <path d="M15 50 Q50 85 85 50" stroke="currentColor" stroke-width="0.8" opacity="0.4" fill="none"/>
+                    </svg>
+                    <p>Fondee en 2022 a Stockholm, Suede.<br>Equipe de 24 personnes.<br>1 mission : l'habitat autonome pour tous.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Values -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title" style="text-align:center;">Nos <em>valeurs</em></h2>
+            <div class="values-grid">
+                <div class="value-card">
+                    <div class="value-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h3>Autonomie</h3>
+                    <p>Chaque ORBA fonctionne independamment. Zero reseau, zero compromis. Votre habitat, votre liberte.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10"/><path d="M20 4l-8 8M15 4h5v5"/></svg>
+                    </div>
+                    <h3>Durabilite</h3>
+                    <p>95% recyclable, bilan carbone neutre en 3 ans. Nous construisons pour la planete, pas contre elle.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M2 7l10 5 10-5M12 12v10"/></svg>
+                    </div>
+                    <h3>Design</h3>
+                    <p>La forme sphérique n'est pas un choix esthetique -- c'est la geometrie la plus efficiente. Le beau au service de l'utile.</p>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+                    </div>
+                    <h3>Connectivite</h3>
+                    <p>WiFi 7, 4G/5G, 32 capteurs, domotique intelligente. Autonome ne veut pas dire deconnecte.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title" style="text-align:center;">L'equipe <em>fondatrice</em></h2>
+            <p style="text-align:center; color: var(--text-muted); margin-bottom: 12px; font-size: 0.95rem;">Les esprits derriere la sphere.</p>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-avatar">EL</div>
+                    <h3>Erik Lindqvist</h3>
+                    <div class="role">CEO & Co-fondateur</div>
+                    <p>Ancien directeur chez un cabinet d'architecture scandinave. 15 ans d'experience en habitat durable et construction modulaire.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">SN</div>
+                    <h3>Sofia Nordstrom</h3>
+                    <div class="role">CTO & Co-fondatrice</div>
+                    <p>Ingenieure en systemes energetiques. Doctorat en integration solaire. Experte en autonomie hors-reseau.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">MK</div>
+                    <h3>Mikael Korhonen</h3>
+                    <div class="role">Head of Design</div>
+                    <p>Designer industriel et architecte d'interieur. Specialise dans l'optimisation d'espaces compacts et le mobilier transformable.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-avatar">AV</div>
+                    <h3>Astrid Vestergaard</h3>
+                    <div class="role">Lead Engineer</div>
+                    <p>Ingenieure structure composite. 10 ans de R&D en materiaux bio-sources. Responsable de l'enveloppe geodesique ORBA.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
+                            <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="2"/>
+                            <circle cx="50" cy="50" r="30" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                            <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+                            <circle cx="50" cy="50" r="4" fill="currentColor"/>
+                        </svg>
+                        <span>ORBA</span>
+                    </div>
+                    <p>L'habitat autonome du futur. Concu en Scandinavie, assemble avec soin, installe partout.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Produit</h4>
+                    <a href="../index.html#concept">Concept</a>
+                    <a href="../index.html#specs">Specifications</a>
+                    <a href="../index.html#smart">Smart Home</a>
+                    <a href="../index.html#reserve">Prix</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Entreprise</h4>
+                    <a href="about.html">A propos</a>
+                    <a href="press.html">Presse</a>
+                    <a href="careers.html">Carrieres</a>
+                    <a href="contact.html">Contact</a>
+                </div>
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <a href="cgv.html">CGV</a>
+                    <a href="privacy.html">Confidentialite</a>
+                    <a href="cookies.html">Cookies</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 ORBA. Tous droits reserves.</p>
+                <div class="footer-social">
+                    <a href="https://instagram.com/orba.habitat" target="_blank" rel="noopener" aria-label="Instagram">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                    </a>
+                    <a href="https://x.com/orba_habitat" target="_blank" rel="noopener" aria-label="Twitter/X">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l16 16M20 4L4 20"/></svg>
+                    </a>
+                    <a href="https://linkedin.com/company/orba-habitat" target="_blank" rel="noopener" aria-label="LinkedIn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M8 11v5M8 8v.01M12 16v-5a2 2 0 014 0v5"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.livit.no)",
+      "Bash(start \"\" \"C:\\\\Users\\\\FlowUP\\\\Desktop\\\\home\\\\index.html\")",
+      "Bash(ls \"C:\\\\Users\\\\FlowUP\\\\Desktop\\\\home\\\\pages\"\" 2>nul || echo \"Directory does not exist \")"
+    ]
+  }
+}
