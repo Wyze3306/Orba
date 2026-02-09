@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORBA — Conditions Generales de Vente</title>
+    <title>ŌRBA — Politique de Cookies</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -120,6 +120,33 @@
             background: var(--accent); opacity: 0.5;
         }
 
+        .cookie-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 24px;
+            font-size: 0.85rem;
+        }
+        .cookie-table th {
+            text-align: left;
+            padding: 12px 16px;
+            background: rgba(168,255,120,0.06);
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+        .cookie-table td {
+            padding: 10px 16px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .cookie-table tr:last-child td {
+            border-bottom: none;
+        }
+
         /* FOOTER */
         .footer { border-top: 1px solid var(--border); padding: 60px 0 30px; }
         .footer-grid {
@@ -155,6 +182,8 @@
             .nav-links { display: none; }
             .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
             .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
+            .cookie-table { font-size: 0.78rem; }
+            .cookie-table th, .cookie-table td { padding: 8px 10px; }
         }
     </style>
 </head>
@@ -170,131 +199,166 @@
                     <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="1" opacity="0.3"/>
                     <circle cx="50" cy="50" r="4" fill="currentColor"/>
                 </svg>
-                <span>ORBA</span>
+                <span>ŌRBA</span>
             </a>
             <div class="nav-links">
                 <a href="../index.html#concept">Concept</a>
                 <a href="../index.html#explorer">Explorer 3D</a>
-                <a href="../index.html#specs">Specifications</a>
+                <a href="../index.html#specs">Spécifications</a>
                 <a href="../index.html#smart">Smart Home</a>
                 <a href="../index.html#autonomie">Autonomie</a>
             </div>
-            <a href="../index.html#reserve" class="nav-cta">Reserver</a>
+            <a href="../index.html#reserve" class="nav-cta">Réserver</a>
         </div>
     </nav>
 
     <!-- Page Header -->
     <header class="page-header">
         <div class="container">
-            <span class="section-tag">Legal</span>
-            <h1>Conditions Generales<br>de <em>Vente</em></h1>
-            <p>Les presentes conditions regissent les pre-commandes et ventes de produits ORBA Habitat.</p>
+            <span class="section-tag">Légal</span>
+            <h1>Politique de<br><em>Cookies</em></h1>
+            <p>Informations sur l'utilisation des cookies et technologies similaires sur le site ŌRBA.</p>
         </div>
     </header>
 
     <!-- Legal Content -->
     <div class="container">
         <div class="legal-content">
-            <p class="legal-update">Derniere mise a jour : 1er fevrier 2026</p>
+            <p class="legal-update">Dernière mise à jour : 1er février 2026</p>
 
-            <h2>Article 1 -- Definitions</h2>
-            <p>Dans les presentes Conditions Generales de Vente (ci-apres "CGV"), les termes suivants ont la signification qui leur est donnee ci-dessous :</p>
+            <h2>Article 1 — Qu'est-ce qu'un cookie ?</h2>
+            <p>Un cookie est un petit fichier texte déposé sur votre terminal (ordinateur, smartphone, tablette) lors de votre visite sur notre site. Il permet de stocker des informations relatives à votre navigation et de vous reconnaître lors de vos visites ultérieures.</p>
+            <p>Les cookies ne contiennent pas d'informations personnelles identifiantes et ne peuvent pas endommager votre appareil.</p>
+
+            <h2>Article 2 — Types de cookies utilisés</h2>
+
+            <h3>2.1 Cookies strictement nécessaires</h3>
+            <p>Ces cookies sont indispensables au fonctionnement du site. Ils ne peuvent pas être désactivés.</p>
+            <table class="cookie-table">
+                <tr>
+                    <th>Cookie</th>
+                    <th>Finalité</th>
+                    <th>Durée</th>
+                </tr>
+                <tr>
+                    <td>orba_session</td>
+                    <td>Identifiant de session pour maintenir votre connexion</td>
+                    <td>Session</td>
+                </tr>
+                <tr>
+                    <td>orba_consent</td>
+                    <td>Mémorisation de votre choix de consentement cookies</td>
+                    <td>13 mois</td>
+                </tr>
+                <tr>
+                    <td>orba_csrf</td>
+                    <td>Protection contre les attaques CSRF sur les formulaires</td>
+                    <td>Session</td>
+                </tr>
+            </table>
+
+            <h3>2.2 Cookies de performance et d'analyse</h3>
+            <p>Ces cookies nous permettent de comprendre comment les visiteurs utilisent notre site, afin d'en améliorer le fonctionnement et l'ergonomie.</p>
+            <table class="cookie-table">
+                <tr>
+                    <th>Cookie</th>
+                    <th>Finalité</th>
+                    <th>Durée</th>
+                </tr>
+                <tr>
+                    <td>_ga / _ga_*</td>
+                    <td>Google Analytics — mesure d'audience anonymisée</td>
+                    <td>13 mois</td>
+                </tr>
+                <tr>
+                    <td>orba_analytics</td>
+                    <td>Analyse interne des parcours utilisateurs</td>
+                    <td>12 mois</td>
+                </tr>
+            </table>
+
+            <h3>2.3 Cookies de fonctionnalité</h3>
+            <p>Ces cookies permettent de mémoriser vos préférences et d'améliorer votre expérience.</p>
+            <table class="cookie-table">
+                <tr>
+                    <th>Cookie</th>
+                    <th>Finalité</th>
+                    <th>Durée</th>
+                </tr>
+                <tr>
+                    <td>orba_lang</td>
+                    <td>Préférence de langue</td>
+                    <td>12 mois</td>
+                </tr>
+                <tr>
+                    <td>orba_theme</td>
+                    <td>Préférence d'affichage</td>
+                    <td>12 mois</td>
+                </tr>
+                <tr>
+                    <td>orba_subscribers</td>
+                    <td>Mémorisation de l'inscription à la liste d'attente (localStorage)</td>
+                    <td>Permanent</td>
+                </tr>
+            </table>
+
+            <h3>2.4 Cookies marketing (optionnels)</h3>
+            <p>Ces cookies ne sont déposés qu'avec votre consentement explicite et permettent de personnaliser les contenus publicitaires.</p>
+            <table class="cookie-table">
+                <tr>
+                    <th>Cookie</th>
+                    <th>Finalité</th>
+                    <th>Durée</th>
+                </tr>
+                <tr>
+                    <td>_fbp</td>
+                    <td>Meta Pixel — suivi des conversions publicitaires</td>
+                    <td>3 mois</td>
+                </tr>
+                <tr>
+                    <td>_gcl_au</td>
+                    <td>Google Ads — suivi des conversions publicitaires</td>
+                    <td>3 mois</td>
+                </tr>
+            </table>
+
+            <h2>Article 3 — Consentement</h2>
+            <p>Lors de votre première visite sur notre site, un bandeau d'information vous permet d'accepter ou de refuser les cookies non essentiels. Vous pouvez modifier vos choix à tout moment.</p>
+            <p>Les cookies strictement nécessaires ne requièrent pas votre consentement car ils sont indispensables au fonctionnement du site.</p>
+
+            <h2>Article 4 — Gestion des cookies</h2>
+            <p>Vous pouvez gérer vos préférences cookies de plusieurs façons :</p>
+
+            <h3>4.1 Via notre bandeau cookies</h3>
+            <p>Cliquez sur le lien "Gérer les cookies" en bas de chaque page pour accéder au panneau de gestion des cookies et modifier vos préférences.</p>
+
+            <h3>4.2 Via votre navigateur</h3>
+            <p>Vous pouvez configurer votre navigateur pour accepter, refuser ou supprimer les cookies :</p>
             <ul>
-                <li><strong>"Vendeur"</strong> : ORBA Habitat SAS, societe par actions simplifiee au capital de 100 000 euros, immatriculee au RCS de Paris sous le numero 912 345 678, dont le siege social est situe au 15 rue de la Paix, 75002 Paris, France.</li>
-                <li><strong>"Client"</strong> ou <strong>"Acheteur"</strong> : toute personne physique ou morale qui passe commande sur le site orba-habitat.com.</li>
-                <li><strong>"Produit"</strong> : la demi-sphere d'habitation autonome ORBA One et l'ensemble de ses composants, accessoires et options.</li>
-                <li><strong>"Pre-commande"</strong> : reservation d'un Produit avant sa date de disponibilite commerciale, moyennant le versement d'un acompte.</li>
-                <li><strong>"Site"</strong> : le site internet accessible a l'adresse orba-habitat.com.</li>
+                <li><strong>Chrome :</strong> Paramètres &gt; Confidentialité et sécurité &gt; Cookies</li>
+                <li><strong>Firefox :</strong> Paramètres &gt; Vie privée et sécurité &gt; Cookies</li>
+                <li><strong>Safari :</strong> Préférences &gt; Confidentialité &gt; Cookies</li>
+                <li><strong>Edge :</strong> Paramètres &gt; Cookies et autorisations du site</li>
+            </ul>
+            <p>La suppression ou le refus de certains cookies peut affecter le fonctionnement du site et limiter l'accès à certaines fonctionnalités.</p>
+
+            <h2>Article 5 — Technologies similaires</h2>
+            <p>En plus des cookies, nous utilisons les technologies suivantes :</p>
+            <ul>
+                <li><strong>localStorage :</strong> stockage local pour mémoriser vos préférences et inscriptions (liste d'attente, contributions)</li>
+                <li><strong>Pixels de suivi :</strong> images invisibles permettant de mesurer l'ouverture des emails (uniquement avec votre consentement)</li>
             </ul>
 
-            <h2>Article 2 -- Objet et champ d'application</h2>
-            <p>Les presentes CGV regissent l'ensemble des ventes et pre-commandes de Produits ORBA effectuees sur le Site. Toute commande implique l'acceptation sans reserve des presentes CGV par le Client.</p>
-            <p>Le Vendeur se reserve le droit de modifier les CGV a tout moment. Les CGV applicables sont celles en vigueur a la date de la commande.</p>
+            <h2>Article 6 — Mise à jour</h2>
+            <p>Cette politique de cookies peut être mise à jour pour refléter des changements dans nos pratiques ou pour des raisons réglementaires. La date de dernière mise à jour est indiquée en haut de cette page.</p>
 
-            <h2>Article 3 -- Pre-commande</h2>
-            <h3>3.1 Processus de pre-commande</h3>
-            <p>Le Client peut effectuer une pre-commande en ligne sur le Site. La pre-commande est validee apres :</p>
+            <h2>Article 7 — Contact</h2>
+            <p>Pour toute question relative aux cookies, contactez-nous :</p>
             <ul>
-                <li>Renseignement des informations personnelles requises (nom, adresse, coordonnees)</li>
-                <li>Acceptation des presentes CGV</li>
-                <li>Paiement de l'acompte de pre-commande</li>
-                <li>Reception d'un email de confirmation de pre-commande</li>
+                <li>Par email : <a href="mailto:privacy@orba-habitat.com">privacy@orba-habitat.com</a></li>
+                <li>Par courrier : ŌRBA Habitat SAS — DPO, 15 rue de la Paix, 75002 Paris, France</li>
             </ul>
-
-            <h3>3.2 Acompte</h3>
-            <p>L'acompte de pre-commande est fixe a 2 500 EUR TTC. Ce montant sera deduit du prix final du Produit. L'acompte est remboursable dans les conditions prevues a l'article 7.</p>
-
-            <h3>3.3 File d'attente</h3>
-            <p>Les pre-commandes sont traitees par ordre chronologique de reception. Le Client recevra une estimation de la date de livraison lors de la confirmation de sa pre-commande.</p>
-
-            <h2>Article 4 -- Prix</h2>
-            <p>Les prix sont exprimes en euros toutes taxes comprises (TTC), hors frais de livraison et d'installation. Le prix du Produit ORBA One est indique sur le Site au moment de la commande.</p>
-            <p>Le prix est celui en vigueur au jour de la commande. Le Vendeur se reserve le droit de modifier les prix a tout moment, mais les Produits seront factures au prix indique lors de la validation de la commande.</p>
-            <p>Les frais de livraison et d'installation sont calcules en fonction du lieu d'installation et communiques au Client avant la validation finale de la commande.</p>
-
-            <h2>Article 5 -- Paiement</h2>
-            <p>Le paiement s'effectue selon l'echeancier suivant :</p>
-            <ul>
-                <li><strong>A la pre-commande :</strong> 2 500 EUR TTC (acompte)</li>
-                <li><strong>A la confirmation de production :</strong> 40% du prix total HT</li>
-                <li><strong>A la livraison :</strong> Solde restant</li>
-            </ul>
-            <p>Les paiements sont acceptes par carte bancaire (Visa, Mastercard) et virement bancaire SEPA. Tous les paiements sont securises par un protocole de chiffrement SSL.</p>
-
-            <h2>Article 6 -- Livraison et installation</h2>
-            <h3>6.1 Delais</h3>
-            <p>Le delai de livraison indicatif est communique au Client lors de la confirmation de commande. Il est generalement compris entre 4 et 8 mois apres la confirmation de production, selon la localisation du lieu d'installation.</p>
-
-            <h3>6.2 Installation</h3>
-            <p>L'installation est realisee par une equipe agree ORBA et dure en moyenne 48 heures. Le Client doit s'assurer que le terrain est accessible et conforme aux pre-requis communiques par le Vendeur (acces poids lourd, terrain stabilise, autorisations administratives).</p>
-
-            <h3>6.3 Transfert de propriete</h3>
-            <p>Le transfert de propriete du Produit au Client n'intervient qu'apres le paiement integral du prix. Le transfert des risques s'effectue a la livraison sur site.</p>
-
-            <h2>Article 7 -- Droit de retractation</h2>
-            <p>Conformement aux articles L.221-18 et suivants du Code de la consommation, le Client dispose d'un delai de quatorze (14) jours a compter de la date de conclusion du contrat de pre-commande pour exercer son droit de retractation, sans avoir a justifier de motif.</p>
-            <p>Passe ce delai, l'acompte de pre-commande n'est pas remboursable, sauf dans les cas suivants :</p>
-            <ul>
-                <li>Retard de livraison superieur a 3 mois par rapport a la date estimee</li>
-                <li>Non-conformite majeure du Produit par rapport aux specifications annoncees</li>
-                <li>Annulation de la commande par le Vendeur</li>
-            </ul>
-
-            <h2>Article 8 -- Garanties</h2>
-            <h3>8.1 Garantie legale de conformite</h3>
-            <p>Le Vendeur est tenu de livrer un Produit conforme au contrat et repond des defauts de conformite conformement aux articles L.217-4 et suivants du Code de la consommation. La garantie legale de conformite s'applique pendant deux (2) ans a compter de la livraison du Produit.</p>
-
-            <h3>8.2 Garantie des vices caches</h3>
-            <p>Le Vendeur est tenu de la garantie des vices caches conformement aux articles 1641 et suivants du Code civil.</p>
-
-            <h3>8.3 Garantie commerciale</h3>
-            <p>En complement des garanties legales, le Vendeur offre les garanties commerciales suivantes :</p>
-            <ul>
-                <li><strong>Structure :</strong> 20 ans sur la coque geodesique et le socle</li>
-                <li><strong>Etancheite :</strong> 10 ans</li>
-                <li><strong>Equipements techniques :</strong> 5 ans (PAC, onduleur, domotique)</li>
-                <li><strong>Panneaux solaires :</strong> 25 ans (performance a 80%)</li>
-                <li><strong>Batterie :</strong> 10 ans ou 4 000 cycles</li>
-            </ul>
-
-            <h2>Article 9 -- Responsabilite</h2>
-            <p>Le Vendeur ne saurait etre tenu responsable des dommages resultant d'une mauvaise utilisation du Produit, du non-respect des consignes d'utilisation et d'entretien, de modifications effectuees par le Client ou un tiers non agree, ou d'un cas de force majeure.</p>
-            <p>La responsabilite du Vendeur est limitee au montant total paye par le Client pour le Produit concerne.</p>
-
-            <h2>Article 10 -- Donnees personnelles</h2>
-            <p>Le traitement des donnees personnelles du Client est regi par notre <a href="privacy.html">Politique de Confidentialite</a>, accessible sur le Site.</p>
-
-            <h2>Article 11 -- Droit applicable et litiges</h2>
-            <p>Les presentes CGV sont soumises au droit francais. En cas de litige, le Client peut recourir a une procedure de mediation conventionnelle ou a tout autre mode alternatif de reglement des differends.</p>
-            <p>A defaut de resolution amiable, le litige sera porte devant les tribunaux competents du ressort de la Cour d'appel de Paris.</p>
-
-            <h2>Article 12 -- Contact</h2>
-            <p>Pour toute question relative aux presentes CGV, le Client peut contacter le Vendeur :</p>
-            <ul>
-                <li>Par email : <a href="mailto:contact@orba-habitat.com">contact@orba-habitat.com</a></li>
-                <li>Par courrier : ORBA Habitat SAS, 15 rue de la Paix, 75002 Paris, France</li>
-                <li>Par telephone : +46 8 123 45 67</li>
-            </ul>
+            <p>Pour en savoir plus sur vos droits concernant les données personnelles, consultez notre <a href="privacy.html">Politique de Confidentialité</a>.</p>
         </div>
     </div>
 
@@ -310,33 +374,33 @@
                             <circle cx="50" cy="50" r="15" stroke="currentColor" stroke-width="1" opacity="0.3"/>
                             <circle cx="50" cy="50" r="4" fill="currentColor"/>
                         </svg>
-                        <span>ORBA</span>
+                        <span>ŌRBA</span>
                     </div>
-                    <p>L'habitat autonome du futur. Concu en Scandinavie, assemble avec soin, installe partout.</p>
+                    <p>L'habitat autonome du futur. Conçu en Scandinavie, assemblé avec soin, installé partout.</p>
                 </div>
                 <div class="footer-links">
                     <h4>Produit</h4>
                     <a href="../index.html#concept">Concept</a>
-                    <a href="../index.html#specs">Specifications</a>
+                    <a href="../index.html#specs">Spécifications</a>
                     <a href="../index.html#smart">Smart Home</a>
                     <a href="../index.html#reserve">Prix</a>
                 </div>
                 <div class="footer-links">
                     <h4>Entreprise</h4>
-                    <a href="about.html">A propos</a>
+                    <a href="about.html">À propos</a>
                     <a href="press.html">Presse</a>
-                    <a href="careers.html">Carrieres</a>
+                    <a href="careers.html">Carrières</a>
                     <a href="contact.html">Contact</a>
                 </div>
                 <div class="footer-links">
-                    <h4>Legal</h4>
+                    <h4>Légal</h4>
                     <a href="cgv.html">CGV</a>
-                    <a href="privacy.html">Confidentialite</a>
+                    <a href="privacy.html">Confidentialité</a>
                     <a href="cookies.html">Cookies</a>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2026 ORBA. Tous droits reserves.</p>
+                <p>&copy; 2026 ŌRBA. Tous droits réservés.</p>
                 <div class="footer-social">
                     <a href="https://instagram.com/orba.habitat" target="_blank" rel="noopener" aria-label="Instagram">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>

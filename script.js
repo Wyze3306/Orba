@@ -341,86 +341,283 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ===== FLOORPLAN VIEW =====
         (function buildFloorplan() {
-            // Top-down circle outline
-            const circleGeo = new THREE.RingGeometry(2.8, 2.85, 64);
-            const circleMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
-            const circle = new THREE.Mesh(circleGeo, circleMat);
-            circle.rotation.x = -Math.PI / 2;
-            circle.position.y = 0;
-            floorplanGroup.add(circle);
+            const R = 2.75; // outer radius
+            const wallR = 2.65; // inner wall radius
 
-            // Inner wall
-            const innerCircle = new THREE.Mesh(
-                new THREE.RingGeometry(2.65, 2.68, 64),
-                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
+            // Outer wall ring
+            const outerRing = new THREE.Mesh(
+                new THREE.RingGeometry(R, R + 0.06, 64),
+                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
             );
-            innerCircle.rotation.x = -Math.PI / 2;
-            floorplanGroup.add(innerCircle);
+            outerRing.rotation.x = -Math.PI / 2;
+            floorplanGroup.add(outerRing);
 
-            // Zone sectors
+            // Inner wall ring
+            const innerRing = new THREE.Mesh(
+                new THREE.RingGeometry(wallR, wallR + 0.03, 64),
+                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+            );
+            innerRing.rotation.x = -Math.PI / 2;
+            floorplanGroup.add(innerRing);
+
+            // Floor fill
+            const floorFill = new THREE.Mesh(
+                new THREE.CircleGeometry(wallR, 64),
+                new THREE.MeshBasicMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide })
+            );
+            floorFill.rotation.x = -Math.PI / 2;
+            floorFill.position.y = -0.01;
+            floorplanGroup.add(floorFill);
+
+            // --- Zone layout (top-down, z+ = south/entry) ---
+            // Organized as clear, non-overlapping sectors:
+            //   Back (north): Couchage (wide, top)
+            //   Left: Cuisine
+            //   Right: Salle d'eau
+            //   Center: Bureau / Espace de vie
+            //   Front: Salon (near entry)
+            //   Small: Local technique (left-front)
+
             const zones = [
-                { name: 'Cuisine', color: 0xffc832, startAngle: Math.PI * 0.6, endAngle: Math.PI * 0.9, inner: 0.5 },
-                { name: 'Salle d\'eau', color: 0x64b4ff, startAngle: Math.PI * 0.9, endAngle: Math.PI * 1.2, inner: 0.5 },
-                { name: 'Couchage', color: 0xc896ff, startAngle: Math.PI * 1.2, endAngle: Math.PI * 1.6, inner: 0.3 },
-                { name: 'Bureau', color: 0xa8ff78, startAngle: Math.PI * 1.6, endAngle: Math.PI * 1.9, inner: 0.4 },
-                { name: 'Salon', color: 0xa8ff78, startAngle: Math.PI * 0.05, endAngle: Math.PI * 0.6, inner: 0.0 },
-                { name: 'Tech', color: 0x888888, startAngle: Math.PI * 1.9, endAngle: Math.PI * 2.05, inner: 0.7 },
+                { name: 'COUCHAGE',    area: '6.8m²', color: 0xc896ff, startAngle: Math.PI * 0.65, endAngle: Math.PI * 1.35, inner: 0.35 },
+                { name: 'CUISINE',     area: '4.5m²', color: 0xffc832, startAngle: Math.PI * 1.35, endAngle: Math.PI * 1.7,  inner: 0.3 },
+                { name: 'SALLE D\'EAU',area: '3.2m²', color: 0x64b4ff, startAngle: Math.PI * 0.3,  endAngle: Math.PI * 0.65, inner: 0.4 },
+                { name: 'VIE/BUREAU',  area: '8.3m²', color: 0xa8ff78, startAngle: Math.PI * 1.7,  endAngle: Math.PI * 0.05, inner: 0.0 },
+                { name: 'SALON',       area: '5.2m²', color: 0x7acc5a, startAngle: Math.PI * 0.05, endAngle: Math.PI * 0.3,  inner: 0.0 },
+                { name: 'TECH',        area: '',      color: 0x888888, startAngle: Math.PI * 1.35, endAngle: Math.PI * 1.7,  inner: 0.7 },
             ];
 
-            zones.forEach(zone => {
+            // Helper to create a sector shape
+            function createSector(startA, endA, outerR, innerR) {
                 const shape = new THREE.Shape();
-                const segments = 20;
-                const outer = 2.65;
-                const inner = outer * zone.inner;
-
+                const segs = 24;
+                // Handle wrap-around (e.g., startAngle > endAngle)
+                let eA = endA;
+                if (eA <= startA) eA += Math.PI * 2;
                 // Outer arc
-                for (let i = 0; i <= segments; i++) {
-                    const a = zone.startAngle + (i / segments) * (zone.endAngle - zone.startAngle);
-                    const x = outer * Math.cos(a);
-                    const z = outer * Math.sin(a);
+                for (let i = 0; i <= segs; i++) {
+                    const a = startA + (i / segs) * (eA - startA);
+                    const x = outerR * Math.cos(a);
+                    const z = outerR * Math.sin(a);
                     if (i === 0) shape.moveTo(x, z);
                     else shape.lineTo(x, z);
                 }
                 // Inner arc (reverse)
-                for (let i = segments; i >= 0; i--) {
-                    const a = zone.startAngle + (i / segments) * (zone.endAngle - zone.startAngle);
-                    shape.lineTo(inner * Math.cos(a), inner * Math.sin(a));
+                for (let i = segs; i >= 0; i--) {
+                    const a = startA + (i / segs) * (eA - startA);
+                    shape.lineTo(innerR * Math.cos(a), innerR * Math.sin(a));
                 }
                 shape.closePath();
+                return shape;
+            }
 
+            zones.forEach(zone => {
+                const shape = createSector(zone.startAngle, zone.endAngle, wallR, wallR * zone.inner);
                 const geo = new THREE.ShapeGeometry(shape);
+
+                // Filled zone
                 const mat = new THREE.MeshBasicMaterial({
                     color: zone.color,
                     transparent: true,
-                    opacity: 0.1,
+                    opacity: 0.12,
                     side: THREE.DoubleSide,
                 });
                 const mesh = new THREE.Mesh(geo, mat);
                 mesh.rotation.x = -Math.PI / 2;
-                mesh.position.y = 0;
+                mesh.position.y = 0.005;
                 floorplanGroup.add(mesh);
 
-                // Zone outline
+                // Zone border
                 const edgeGeo = new THREE.EdgesGeometry(geo);
-                const edgeMat = new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.35 });
+                const edgeMat = new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.5 });
                 const edges = new THREE.LineSegments(edgeGeo, edgeMat);
                 edges.rotation.x = -Math.PI / 2;
+                edges.position.y = 0.005;
                 floorplanGroup.add(edges);
             });
 
-            // Grid cross
-            const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05 });
-            [[[0, 0, -3], [0, 0, 3]], [[-3, 0, 0], [3, 0, 0]]].forEach(([a, b]) => {
-                const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
-                floorplanGroup.add(new THREE.Line(g, gridMat));
+            // --- Partition walls (lines separating zones) ---
+            function addWall(x1, z1, x2, z2, color) {
+                const wallGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x1, 0.01, z1),
+                    new THREE.Vector3(x2, 0.01, z2)
+                ]);
+                const wallMat = new THREE.LineBasicMaterial({ color: color || 0xffffff, transparent: true, opacity: 0.35, linewidth: 2 });
+                floorplanGroup.add(new THREE.Line(wallGeo, wallMat));
+            }
+
+            // Partition lines at zone boundaries (radial lines)
+            const partitionAngles = [
+                { angle: Math.PI * 0.05, color: 0xa8ff78 },
+                { angle: Math.PI * 0.3,  color: 0x64b4ff },
+                { angle: Math.PI * 0.65, color: 0xc896ff },
+                { angle: Math.PI * 1.35, color: 0xffc832 },
+                { angle: Math.PI * 1.7,  color: 0xa8ff78 },
+            ];
+            partitionAngles.forEach(p => {
+                const innerR = 0.15;
+                addWall(
+                    innerR * Math.cos(p.angle), innerR * Math.sin(p.angle),
+                    wallR * Math.cos(p.angle), wallR * Math.sin(p.angle),
+                    p.color
+                );
             });
 
-            // Entry marker
+            // Tech room inner curved wall
+            const techWallGeo = new THREE.BufferGeometry();
+            const techPts = [];
+            for (let i = 0; i <= 16; i++) {
+                const a = Math.PI * 1.35 + (i / 16) * (Math.PI * 1.7 - Math.PI * 1.35);
+                techPts.push(new THREE.Vector3(wallR * 0.7 * Math.cos(a), 0.01, wallR * 0.7 * Math.sin(a)));
+            }
+            techWallGeo.setFromPoints(techPts);
+            const techWallMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.4 });
+            floorplanGroup.add(new THREE.Line(techWallGeo, techWallMat));
+
+            // --- Furniture indicators ---
+            // Bed in Couchage zone (back, center)
+            const bedGeo = new THREE.PlaneGeometry(0.9, 0.55);
+            const bedMat = new THREE.MeshBasicMaterial({ color: 0xc896ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+            const bed = new THREE.Mesh(bedGeo, bedMat);
+            bed.rotation.x = -Math.PI / 2;
+            bed.position.set(-1.3 * Math.cos(Math.PI), 0.01, -1.3 * Math.sin(Math.PI));
+            bed.position.set(0, 0.01, -1.5);
+            floorplanGroup.add(bed);
+            // Bed outline
+            const bedEdges = new THREE.LineSegments(
+                new THREE.EdgesGeometry(bedGeo),
+                new THREE.LineBasicMaterial({ color: 0xc896ff, transparent: true, opacity: 0.5 })
+            );
+            bedEdges.rotation.x = -Math.PI / 2;
+            bedEdges.position.copy(bed.position);
+            floorplanGroup.add(bedEdges);
+
+            // Desk in Bureau zone
+            const deskGeo = new THREE.PlaneGeometry(0.6, 0.3);
+            const deskMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+            const desk = new THREE.Mesh(deskGeo, deskMat);
+            desk.rotation.x = -Math.PI / 2;
+            desk.position.set(1.6, 0.01, 0.8);
+            floorplanGroup.add(desk);
+            const deskEdges = new THREE.LineSegments(
+                new THREE.EdgesGeometry(deskGeo),
+                new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.5 })
+            );
+            deskEdges.rotation.x = -Math.PI / 2;
+            deskEdges.position.copy(desk.position);
+            floorplanGroup.add(deskEdges);
+
+            // Kitchen counter in Cuisine zone
+            const kitchenPts = [];
+            for (let i = 0; i <= 12; i++) {
+                const a = Math.PI * 1.4 + (i / 12) * (Math.PI * 1.65 - Math.PI * 1.4);
+                kitchenPts.push(new THREE.Vector3(wallR * 0.85 * Math.cos(a), 0.01, wallR * 0.85 * Math.sin(a)));
+            }
+            const kitchenGeo = new THREE.BufferGeometry().setFromPoints(kitchenPts);
+            const kitchenMat = new THREE.LineBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.6, linewidth: 3 });
+            floorplanGroup.add(new THREE.Line(kitchenGeo, kitchenMat));
+
+            // Shower in Salle d'eau (small circle)
+            const showerGeo = new THREE.RingGeometry(0.2, 0.25, 16);
+            const showerMat = new THREE.MeshBasicMaterial({ color: 0x64b4ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+            const shower = new THREE.Mesh(showerGeo, showerMat);
+            shower.rotation.x = -Math.PI / 2;
+            shower.position.set(1.8, 0.01, -1.2);
+            floorplanGroup.add(shower);
+
+            // Sofa in Salon (curved line)
+            const sofaPts = [];
+            for (let i = 0; i <= 10; i++) {
+                const a = Math.PI * 0.1 + (i / 10) * (Math.PI * 0.25 - Math.PI * 0.1);
+                sofaPts.push(new THREE.Vector3(wallR * 0.7 * Math.cos(a), 0.01, wallR * 0.7 * Math.sin(a)));
+            }
+            const sofaGeo = new THREE.BufferGeometry().setFromPoints(sofaPts);
+            const sofaMat = new THREE.LineBasicMaterial({ color: 0x7acc5a, transparent: true, opacity: 0.6, linewidth: 3 });
+            floorplanGroup.add(new THREE.Line(sofaGeo, sofaMat));
+
+            // --- Zone labels (using sprite-like flat text via canvas) ---
+            function createLabel(text, x, z, color) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'transparent';
+                ctx.fillRect(0, 0, 256, 64);
+                ctx.font = 'bold 22px Inter, sans-serif';
+                ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 128, 28);
+                // Area subtitle
+                const areaText = zones.find(z => z.name === text);
+                if (areaText && areaText.area) {
+                    ctx.font = '16px Inter, sans-serif';
+                    ctx.globalAlpha = 0.6;
+                    ctx.fillText(areaText.area, 128, 50);
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.needsUpdate = true;
+                const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.position.set(x, 0.1, z);
+                sprite.scale.set(1.2, 0.3, 1);
+                return sprite;
+            }
+
+            // Place labels at zone centers
+            const labelData = [
+                { name: 'COUCHAGE',     color: 0xc896ff, x: 0,    z: -1.5 },
+                { name: 'CUISINE',      color: 0xffc832, x: -1.5, z: 1.0  },
+                { name: 'SALLE D\'EAU', color: 0x64b4ff, x: 1.8,  z: -0.8 },
+                { name: 'VIE/BUREAU',   color: 0xa8ff78, x: 1.2,  z: 1.2  },
+                { name: 'SALON',        color: 0x7acc5a, x: 2.0,  z: 0.2  },
+                { name: 'TECH',         color: 0x888888, x: -1.8, z: 1.6  },
+            ];
+            labelData.forEach(l => {
+                floorplanGroup.add(createLabel(l.name, l.x, l.z, l.color));
+            });
+
+            // --- Entry marker and label ---
             const entryGeo = new THREE.SphereGeometry(0.08, 16, 16);
             const entryMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78 });
             const entry = new THREE.Mesh(entryGeo, entryMat);
-            entry.position.set(0, 0, 2.75);
+            entry.position.set(0, 0.02, wallR);
             floorplanGroup.add(entry);
+
+            // Entry arrow
+            const arrowPts = [
+                new THREE.Vector3(-0.15, 0.02, wallR + 0.3),
+                new THREE.Vector3(0, 0.02, wallR + 0.05),
+                new THREE.Vector3(0.15, 0.02, wallR + 0.3),
+            ];
+            const arrowGeo = new THREE.BufferGeometry().setFromPoints(arrowPts);
+            const arrowMat = new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.6 });
+            floorplanGroup.add(new THREE.Line(arrowGeo, arrowMat));
+
+            floorplanGroup.add(createLabel('ENTRÉE', 0, wallR + 0.55, 0xa8ff78));
+
+            // --- Dimension lines ---
+            // Horizontal dimension
+            const dimPts1 = [new THREE.Vector3(-R, 0.02, R + 0.5), new THREE.Vector3(R, 0.02, R + 0.5)];
+            const dimGeo1 = new THREE.BufferGeometry().setFromPoints(dimPts1);
+            const dimMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
+            floorplanGroup.add(new THREE.Line(dimGeo1, dimMat));
+            // Dimension ticks
+            [[-R, R + 0.3, -R, R + 0.7], [R, R + 0.3, R, R + 0.7]].forEach(([x1, z1, x2, z2]) => {
+                const tickGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x1, 0.02, z1), new THREE.Vector3(x2, 0.02, z2)
+                ]);
+                floorplanGroup.add(new THREE.Line(tickGeo, dimMat));
+            });
+            floorplanGroup.add(createLabel('6.0m', 0, R + 0.85, 0x666666));
+
+            // --- Grid cross (subtle) ---
+            const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.04 });
+            [[[0, 0.005, -R], [0, 0.005, R]], [[-R, 0.005, 0], [R, 0.005, 0]]].forEach(([a, b]) => {
+                const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+                floorplanGroup.add(new THREE.Line(g, gridMat));
+            });
 
             floorplanGroup.visible = false;
             scene.add(floorplanGroup);
