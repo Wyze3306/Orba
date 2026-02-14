@@ -72,12 +72,16 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentView = 'exterior';
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-        camera.position.set(0, 2, 8);
+        camera.position.set(0, 3, 8);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x161616, 1);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
         container.appendChild(renderer.domElement);
 
         // OrbitControls
@@ -85,21 +89,24 @@ document.addEventListener('DOMContentLoaded', () => {
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.enableZoom = true;
-        controls.minDistance = 4;
+        controls.minDistance = 3;
         controls.maxDistance = 15;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.8;
+        controls.autoRotateSpeed = 0.5;
         controls.maxPolarAngle = Math.PI * 0.85;
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(5, 8, 5);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(5, 10, 5);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
         scene.add(dirLight);
 
-        const accentLight = new THREE.PointLight(0xa8ff78, 0.5, 20);
+        const accentLight = new THREE.PointLight(0xa8ff78, 0.4, 20);
         accentLight.position.set(-3, 4, 3);
         scene.add(accentLight);
 
@@ -112,561 +119,1161 @@ document.addEventListener('DOMContentLoaded', () => {
         const interiorGroup = new THREE.Group();
         const floorplanGroup = new THREE.Group();
         const explodedGroup = new THREE.Group();
+        const realisticGroup = new THREE.Group();
 
-        // ===== EXTERIOR VIEW: Geodesic half-sphere dome =====
-        function createGeodesicDome(radius, detail) {
-            // Start from icosahedron for geodesic pattern
-            const icoGeo = new THREE.IcosahedronGeometry(radius, detail);
+        // Dome dimensions: radius=3m, hemisphere
+        const DOME_R = 3.0;
+        const WALL_THICKNESS = 0.15;
+        const FLOOR_Y = 0.0;
 
-            // Clip to half-sphere (keep only top half, y >= -0.05)
-            const positions = icoGeo.attributes.position;
+        // ===== HELPER: Create curved wall segment along dome perimeter =====
+        function createCurvedWall(startAngle, endAngle, height, innerR, color, opacity) {
+            const segs = 24;
+            const geo = new THREE.BufferGeometry();
+            const vertices = [];
+            const normals = [];
             const indices = [];
-            const posArr = [];
-
-            // Build half-sphere by creating a new geometry
-            const halfGeo = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-
-            return { icoGeo, halfGeo };
+            const range = endAngle - startAngle;
+            for (let i = 0; i <= segs; i++) {
+                const a = startAngle + (i / segs) * range;
+                const x = innerR * Math.cos(a);
+                const z = innerR * Math.sin(a);
+                const nx = Math.cos(a);
+                const nz = Math.sin(a);
+                // bottom vertex
+                vertices.push(x, FLOOR_Y, z);
+                normals.push(nx, 0, nz);
+                // top vertex
+                vertices.push(x, FLOOR_Y + height, z);
+                normals.push(nx, 0, nz);
+            }
+            for (let i = 0; i < segs; i++) {
+                const b = i * 2;
+                indices.push(b, b+1, b+2, b+1, b+3, b+2);
+            }
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+            geo.setIndex(indices);
+            const mat = new THREE.MeshPhysicalMaterial({
+                color: color,
+                transparent: opacity < 1,
+                opacity: opacity,
+                roughness: 0.6,
+                metalness: 0.05,
+                side: THREE.DoubleSide,
+            });
+            return new THREE.Mesh(geo, mat);
         }
 
-        // --- Exterior dome ---
+        // ===== HELPER: Get dome height at distance from center =====
+        function domeHeightAt(r) {
+            if (r >= DOME_R) return 0;
+            return Math.sqrt(DOME_R * DOME_R - r * r);
+        }
+
+        // ===== HELPER: Create text sprite label =====
+        function createLabel(text, x, y, z, color, fontSize) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 256, 64);
+            ctx.font = `bold ${fontSize || 20}px Inter, sans-serif`;
+            ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 32);
+            const texture = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+            const sprite = new THREE.Sprite(mat);
+            sprite.position.set(x, y, z);
+            sprite.scale.set(1.2, 0.3, 1);
+            return sprite;
+        }
+
+        // ===================================================================
+        // ===== EXTERIOR VIEW =====
+        // ===================================================================
         (function buildExterior() {
-            // Main dome wireframe (geodesic)
-            const icoGeo = new THREE.IcosahedronGeometry(3, 2);
-            // Clip vertices below y=0
+            // Geodesic wireframe
+            const icoGeo = new THREE.IcosahedronGeometry(DOME_R, 2);
             const pos = icoGeo.attributes.position.array;
             for (let i = 0; i < pos.length; i += 3) {
                 if (pos[i + 1] < -0.05) pos[i + 1] = -0.05;
             }
-
             const wireframe = new THREE.WireframeGeometry(icoGeo);
-            const wireMat = new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.25 });
-            const wireLines = new THREE.LineSegments(wireframe, wireMat);
-            exteriorGroup.add(wireLines);
+            const wireMat = new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.2 });
+            exteriorGroup.add(new THREE.LineSegments(wireframe, wireMat));
 
-            // Solid translucent dome
-            const domeGeo = new THREE.SphereGeometry(2.95, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+            // Solid translucent dome shell
+            const domeGeo = new THREE.SphereGeometry(DOME_R - 0.02, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
             const domeMat = new THREE.MeshPhysicalMaterial({
-                color: 0x1a2a15,
-                transparent: true,
-                opacity: 0.15,
-                roughness: 0.2,
-                metalness: 0.3,
-                side: THREE.DoubleSide,
+                color: 0x1a2a15, transparent: true, opacity: 0.12,
+                roughness: 0.2, metalness: 0.3, side: THREE.DoubleSide,
             });
-            const dome = new THREE.Mesh(domeGeo, domeMat);
-            exteriorGroup.add(dome);
+            exteriorGroup.add(new THREE.Mesh(domeGeo, domeMat));
 
-            // Glass window section
-            const windowGeo = new THREE.SphereGeometry(3.01, 32, 16, Math.PI * 0.3, Math.PI * 0.4, Math.PI * 0.15, Math.PI * 0.25);
-            const windowMat = new THREE.MeshPhysicalMaterial({
-                color: 0x78d4ff,
-                transparent: true,
-                opacity: 0.25,
-                roughness: 0.0,
-                metalness: 0.1,
-                side: THREE.DoubleSide,
+            // Large panoramic window (front-facing, wider)
+            const winGeo = new THREE.SphereGeometry(DOME_R + 0.01, 48, 24,
+                -Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.15, Math.PI * 0.35);
+            const winMat = new THREE.MeshPhysicalMaterial({
+                color: 0x78d4ff, transparent: true, opacity: 0.3,
+                roughness: 0.0, metalness: 0.1, side: THREE.DoubleSide,
             });
-            const windowMesh = new THREE.Mesh(windowGeo, windowMat);
-            exteriorGroup.add(windowMesh);
-
-            // Solar panels on top (golden ring)
-            const solarGeo = new THREE.SphereGeometry(3.02, 32, 8, 0, Math.PI * 2, 0, Math.PI * 0.2);
-            const solarMat = new THREE.MeshPhysicalMaterial({
-                color: 0x2a2a40,
-                transparent: true,
-                opacity: 0.5,
-                roughness: 0.1,
-                metalness: 0.8,
-                side: THREE.DoubleSide,
-            });
-            const solar = new THREE.Mesh(solarGeo, solarMat);
-            exteriorGroup.add(solar);
-
-            // Solar panel grid lines
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
-                const lineGeo = new THREE.BufferGeometry();
-                const points = [];
-                for (let t = 0; t <= 10; t++) {
-                    const phi = (t / 10) * Math.PI * 0.2;
-                    points.push(new THREE.Vector3(
-                        3.03 * Math.sin(phi) * Math.cos(angle),
-                        3.03 * Math.cos(phi),
-                        3.03 * Math.sin(phi) * Math.sin(angle)
+            exteriorGroup.add(new THREE.Mesh(winGeo, winMat));
+            // Window frame lines
+            const winFrameMat = new THREE.LineBasicMaterial({ color: 0x78d4ff, transparent: true, opacity: 0.4 });
+            for (let i = 0; i <= 4; i++) {
+                const pts = [];
+                const theta = -Math.PI * 0.25 + (i / 4) * Math.PI * 0.5;
+                for (let j = 0; j <= 16; j++) {
+                    const phi = Math.PI * 0.15 + (j / 16) * Math.PI * 0.35;
+                    const r = DOME_R + 0.015;
+                    pts.push(new THREE.Vector3(
+                        r * Math.sin(phi) * Math.cos(theta),
+                        r * Math.cos(phi),
+                        r * Math.sin(phi) * Math.sin(theta)
                     ));
                 }
-                lineGeo.setFromPoints(points);
-                const lineMat = new THREE.LineBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.4 });
-                exteriorGroup.add(new THREE.Line(lineGeo, lineMat));
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                exteriorGroup.add(new THREE.Line(geo, winFrameMat));
             }
 
-            // Base platform (floor)
-            const baseGeo = new THREE.CylinderGeometry(3.2, 3.4, 0.3, 32);
-            const baseMat = new THREE.MeshPhysicalMaterial({
-                color: 0x222222,
-                roughness: 0.5,
-                metalness: 0.5,
+            // Solar panels on top
+            const solarGeo = new THREE.SphereGeometry(DOME_R + 0.02, 32, 8, 0, Math.PI * 2, 0, Math.PI * 0.22);
+            const solarMat = new THREE.MeshPhysicalMaterial({
+                color: 0x1a1a35, transparent: true, opacity: 0.6,
+                roughness: 0.1, metalness: 0.8, side: THREE.DoubleSide,
             });
+            exteriorGroup.add(new THREE.Mesh(solarGeo, solarMat));
+
+            // Solar panel grid lines
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI * 2;
+                const pts = [];
+                for (let t = 0; t <= 10; t++) {
+                    const phi = (t / 10) * Math.PI * 0.22;
+                    const r = DOME_R + 0.025;
+                    pts.push(new THREE.Vector3(
+                        r * Math.sin(phi) * Math.cos(angle),
+                        r * Math.cos(phi),
+                        r * Math.sin(phi) * Math.sin(angle)
+                    ));
+                }
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                const mat = new THREE.LineBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.35 });
+                exteriorGroup.add(new THREE.Line(geo, mat));
+            }
+            // Concentric solar rings
+            for (let r = 0; r < 3; r++) {
+                const phi = Math.PI * 0.06 + r * Math.PI * 0.06;
+                const pts = [];
+                const ringR = (DOME_R + 0.025) * Math.sin(phi);
+                const ringY = (DOME_R + 0.025) * Math.cos(phi);
+                for (let i = 0; i <= 48; i++) {
+                    const a = (i / 48) * Math.PI * 2;
+                    pts.push(new THREE.Vector3(ringR * Math.cos(a), ringY, ringR * Math.sin(a)));
+                }
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                exteriorGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.2 })));
+            }
+
+            // Base platform
+            const baseGeo = new THREE.CylinderGeometry(3.2, 3.4, 0.35, 48);
+            const baseMat = new THREE.MeshPhysicalMaterial({ color: 0x2a2a2a, roughness: 0.4, metalness: 0.6 });
             const base = new THREE.Mesh(baseGeo, baseMat);
-            base.position.y = -0.15;
+            base.position.y = -0.175;
+            base.castShadow = true;
+            base.receiveShadow = true;
             exteriorGroup.add(base);
 
-            // Entry door indicator
-            const doorGeo = new THREE.BoxGeometry(0.8, 1.5, 0.05);
+            // === ENTRY DOOR (clearly visible) ===
+            // Door recess in dome
+            const doorW = 0.9, doorH = 2.0;
+            const doorGeo = new THREE.BoxGeometry(doorW, doorH, 0.12);
             const doorMat = new THREE.MeshPhysicalMaterial({
-                color: 0xa8ff78,
-                transparent: true,
-                opacity: 0.15,
-                emissive: 0xa8ff78,
-                emissiveIntensity: 0.2,
+                color: 0x333333, roughness: 0.3, metalness: 0.5,
             });
             const door = new THREE.Mesh(doorGeo, doorMat);
-            door.position.set(0, 0.75, 2.98);
+            door.position.set(0, doorH / 2, DOME_R - 0.05);
             exteriorGroup.add(door);
 
+            // Door frame (bright accent)
+            const frameMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78 });
+            // Left frame
+            const fl = new THREE.Mesh(new THREE.BoxGeometry(0.04, doorH + 0.06, 0.06), frameMat);
+            fl.position.set(-doorW / 2 - 0.02, doorH / 2, DOME_R - 0.02);
+            exteriorGroup.add(fl);
+            // Right frame
+            const fr = new THREE.Mesh(new THREE.BoxGeometry(0.04, doorH + 0.06, 0.06), frameMat);
+            fr.position.set(doorW / 2 + 0.02, doorH / 2, DOME_R - 0.02);
+            exteriorGroup.add(fr);
+            // Top frame
+            const ft = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.08, 0.04, 0.06), frameMat);
+            ft.position.set(0, doorH + 0.02, DOME_R - 0.02);
+            exteriorGroup.add(ft);
+
+            // Door handle
+            const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.15, 8);
+            const handle = new THREE.Mesh(handleGeo, new THREE.MeshPhysicalMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.2 }));
+            handle.rotation.x = Math.PI / 2;
+            handle.position.set(0.3, doorH * 0.5, DOME_R + 0.02);
+            exteriorGroup.add(handle);
+
+            // Door step/landing
+            const stepGeo = new THREE.BoxGeometry(1.4, 0.08, 0.6);
+            const stepMat = new THREE.MeshPhysicalMaterial({ color: 0x333333, roughness: 0.4, metalness: 0.4 });
+            const step = new THREE.Mesh(stepGeo, stepMat);
+            step.position.set(0, -0.04, DOME_R + 0.25);
+            exteriorGroup.add(step);
+
+            // Accent light above door
+            const doorLight = new THREE.PointLight(0xa8ff78, 0.6, 3);
+            doorLight.position.set(0, doorH + 0.3, DOME_R + 0.1);
+            exteriorGroup.add(doorLight);
+
             // Ground plane
-            const groundGeo = new THREE.PlaneGeometry(20, 20);
+            const groundGeo = new THREE.PlaneGeometry(24, 24);
             const groundMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1 });
             const ground = new THREE.Mesh(groundGeo, groundMat);
             ground.rotation.x = -Math.PI / 2;
-            ground.position.y = -0.3;
+            ground.position.y = -0.35;
+            ground.receiveShadow = true;
             exteriorGroup.add(ground);
 
             scene.add(exteriorGroup);
         })();
 
-        // ===== INTERIOR VIEW =====
+        // ===================================================================
+        // ===== INTERIOR VIEW — Properly laid out =====
+        // ===================================================================
         (function buildInterior() {
-            // Inner dome (seen from inside - wood texture color)
-            const innerDomeGeo = new THREE.SphereGeometry(2.9, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
-            const innerDomeMat = new THREE.MeshPhysicalMaterial({
-                color: 0x8B7355,
-                roughness: 0.7,
-                metalness: 0.05,
-                side: THREE.BackSide,
-            });
-            const innerDome = new THREE.Mesh(innerDomeGeo, innerDomeMat);
-            interiorGroup.add(innerDome);
+            const innerR = DOME_R - WALL_THICKNESS;
 
-            // Ribs (structural)
+            // Inner dome shell (wood tones, seen from inside)
+            const innerDomeGeo = new THREE.SphereGeometry(innerR, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+            const innerDomeMat = new THREE.MeshPhysicalMaterial({
+                color: 0x8B7355, roughness: 0.75, metalness: 0.02, side: THREE.BackSide,
+            });
+            interiorGroup.add(new THREE.Mesh(innerDomeGeo, innerDomeMat));
+
+            // Structural ribs (12 wooden ribs)
             for (let i = 0; i < 12; i++) {
                 const angle = (i / 12) * Math.PI * 2;
-                const ribGeo = new THREE.BufferGeometry();
-                const points = [];
-                for (let t = 0; t <= 30; t++) {
-                    const phi = (t / 30) * Math.PI / 2;
-                    points.push(new THREE.Vector3(
-                        2.85 * Math.sin(phi) * Math.cos(angle),
-                        2.85 * Math.cos(phi),
-                        2.85 * Math.sin(phi) * Math.sin(angle)
+                const pts = [];
+                for (let t = 0; t <= 40; t++) {
+                    const phi = (t / 40) * Math.PI / 2;
+                    const r = innerR - 0.02;
+                    pts.push(new THREE.Vector3(
+                        r * Math.sin(phi) * Math.cos(angle),
+                        r * Math.cos(phi),
+                        r * Math.sin(phi) * Math.sin(angle)
                     ));
                 }
-                ribGeo.setFromPoints(points);
-                const ribMat = new THREE.LineBasicMaterial({ color: 0xc8a87a, transparent: true, opacity: 0.5 });
-                interiorGroup.add(new THREE.Line(ribGeo, ribMat));
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                interiorGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xc8a87a, transparent: true, opacity: 0.5 })));
             }
 
-            // LED light rings
-            const ledColors = [0xa8ff78, 0xffb347, 0x78d4ff];
-            ledColors.forEach((color, i) => {
-                const phi = Math.PI * 0.12 + i * Math.PI * 0.12;
-                const ringRadius = 2.87 * Math.sin(phi);
-                const ringY = 2.87 * Math.cos(phi);
-                const ringGeo = new THREE.TorusGeometry(ringRadius, 0.015, 8, 64);
-                const ringMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.6 });
-                const ring = new THREE.Mesh(ringGeo, ringMat);
-                ring.position.y = ringY;
+            // LED light rings (3 concentric at different heights)
+            const ledData = [
+                { color: 0xa8ff78, phi: Math.PI * 0.1 },
+                { color: 0xffb347, phi: Math.PI * 0.22 },
+                { color: 0x78d4ff, phi: Math.PI * 0.34 },
+            ];
+            ledData.forEach(d => {
+                const rr = innerR * Math.sin(d.phi);
+                const yy = innerR * Math.cos(d.phi);
+                // Solid ring
+                const ringGeo = new THREE.TorusGeometry(rr, 0.02, 8, 64);
+                const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: d.color, transparent: true, opacity: 0.7 }));
+                ring.position.y = yy;
                 ring.rotation.x = Math.PI / 2;
                 interiorGroup.add(ring);
-
-                // Glow
-                const glowRing = new THREE.Mesh(
-                    new THREE.TorusGeometry(ringRadius, 0.08, 8, 64),
-                    new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.08 })
+                // Glow ring
+                const glow = new THREE.Mesh(
+                    new THREE.TorusGeometry(rr, 0.1, 8, 64),
+                    new THREE.MeshBasicMaterial({ color: d.color, transparent: true, opacity: 0.06 })
                 );
-                glowRing.position.y = ringY;
-                glowRing.rotation.x = Math.PI / 2;
-                interiorGroup.add(glowRing);
+                glow.position.y = yy;
+                glow.rotation.x = Math.PI / 2;
+                interiorGroup.add(glow);
+                // Point light for each ring
+                const pl = new THREE.PointLight(d.color, 0.15, 5);
+                pl.position.set(0, yy, 0);
+                interiorGroup.add(pl);
             });
 
-            // Floor
-            const floorGeo = new THREE.CircleGeometry(2.8, 64);
-            const floorMat = new THREE.MeshPhysicalMaterial({ color: 0x6B5B45, roughness: 0.8, metalness: 0.05 });
+            // Floor (wooden planks look)
+            const floorGeo = new THREE.CircleGeometry(innerR - 0.1, 64);
+            const floorMat = new THREE.MeshPhysicalMaterial({ color: 0x6B5B45, roughness: 0.8, metalness: 0.02 });
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI / 2;
             floor.position.y = 0.01;
+            floor.receiveShadow = true;
             interiorGroup.add(floor);
 
-            // Bed (purple zone)
-            const bedGeo = new THREE.BoxGeometry(1.2, 0.25, 0.8);
-            const bedMat = new THREE.MeshPhysicalMaterial({ color: 0x8B6BAE, roughness: 0.6 });
-            const bed = new THREE.Mesh(bedGeo, bedMat);
-            bed.position.set(-1.5, 0.15, -0.8);
-            interiorGroup.add(bed);
+            // === ENTRY DOOR (visible from inside, front/south, z+) ===
+            const doorW = 0.9, doorH = 2.0;
+            const doorGeo = new THREE.BoxGeometry(doorW, doorH, 0.08);
+            const doorMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.4 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, doorH / 2, innerR - 0.04);
+            interiorGroup.add(door);
+            // Door frame accent
+            const dfMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78 });
+            const dfl = new THREE.Mesh(new THREE.BoxGeometry(0.04, doorH + 0.04, 0.04), dfMat);
+            dfl.position.set(-doorW / 2 - 0.02, doorH / 2, innerR - 0.02);
+            interiorGroup.add(dfl);
+            const dfr = new THREE.Mesh(new THREE.BoxGeometry(0.04, doorH + 0.04, 0.04), dfMat);
+            dfr.position.set(doorW / 2 + 0.02, doorH / 2, innerR - 0.02);
+            interiorGroup.add(dfr);
 
-            // Desk (green zone)
-            const deskGeo = new THREE.BoxGeometry(1.0, 0.05, 0.5);
-            const deskMat = new THREE.MeshPhysicalMaterial({ color: 0x5a7a4a, roughness: 0.4 });
-            const desk = new THREE.Mesh(deskGeo, deskMat);
-            desk.position.set(1.5, 0.75, 0);
+            // ---- ZONE LAYOUT ----
+            // The dome is circular, radius ~2.85m. We place furniture against the curved walls.
+            // Front (z+): Entry door, hallway
+            // Left-front (z+,x-): Kitchen along the wall
+            // Right-front (z+,x+): Salon/Living with sofa against wall
+            // Back-left (z-,x-): Bedroom (bed against the far wall)
+            // Back-right (z-,x+): Bathroom (shower cabin + toilet + sink)
+            // Center: Desk/Bureau (open space)
+            // Under floor (conceptual): Technical area
+
+            // === BEDROOM — back-left sector, bed against curved wall ===
+            // Bed: 160x200cm = 1.6m x 2.0m in Three.js
+            const bedBase = new THREE.Mesh(
+                new THREE.BoxGeometry(1.6, 0.12, 2.0),
+                new THREE.MeshPhysicalMaterial({ color: 0x5a4a3a, roughness: 0.7 })
+            );
+            bedBase.position.set(-1.1, 0.06, -1.4);
+            bedBase.rotation.y = Math.PI * 0.15;
+            interiorGroup.add(bedBase);
+            // Mattress
+            const mattress = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 0.18, 1.9),
+                new THREE.MeshPhysicalMaterial({ color: 0xddd8d0, roughness: 0.9 })
+            );
+            mattress.position.set(-1.1, 0.21, -1.4);
+            mattress.rotation.y = Math.PI * 0.15;
+            interiorGroup.add(mattress);
+            // Pillows
+            const pillowGeo = new THREE.BoxGeometry(0.45, 0.1, 0.3);
+            const pillowMat = new THREE.MeshPhysicalMaterial({ color: 0xeee8e0, roughness: 0.95 });
+            const p1 = new THREE.Mesh(pillowGeo, pillowMat);
+            p1.position.set(-1.4, 0.35, -2.2);
+            p1.rotation.y = Math.PI * 0.15;
+            interiorGroup.add(p1);
+            const p2 = new THREE.Mesh(pillowGeo, pillowMat);
+            p2.position.set(-0.85, 0.35, -2.15);
+            p2.rotation.y = Math.PI * 0.15;
+            interiorGroup.add(p2);
+            // Bedside table
+            const nightstand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.35, 0.45, 0.35),
+                new THREE.MeshPhysicalMaterial({ color: 0x6B5B45, roughness: 0.6 })
+            );
+            nightstand.position.set(-2.15, 0.225, -0.9);
+            interiorGroup.add(nightstand);
+
+            // Bedroom partition wall (curved, from bedroom to separate from center)
+            const bedWall = createCurvedWall(Math.PI * 1.0, Math.PI * 1.15, 1.8, innerR * 0.45, 0x7a6a55, 0.5);
+            interiorGroup.add(bedWall);
+
+            // === KITCHEN — left-front, counter along the wall ===
+            // Kitchen counter (L-shaped along dome wall)
+            const counterH = 0.85;
+            // Main counter segment along wall
+            const counter1 = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, counterH, 0.55),
+                new THREE.MeshPhysicalMaterial({ color: 0x888070, roughness: 0.3, metalness: 0.2 })
+            );
+            counter1.position.set(-1.8, counterH / 2, 1.2);
+            counter1.rotation.y = Math.PI * 0.3;
+            interiorGroup.add(counter1);
+            // Counter top (slightly lighter)
+            const counterTop = new THREE.Mesh(
+                new THREE.BoxGeometry(1.85, 0.04, 0.6),
+                new THREE.MeshPhysicalMaterial({ color: 0xaaa89a, roughness: 0.15, metalness: 0.3 })
+            );
+            counterTop.position.set(-1.8, counterH + 0.02, 1.2);
+            counterTop.rotation.y = Math.PI * 0.3;
+            interiorGroup.add(counterTop);
+            // Sink (small cylinder cutout indication)
+            const sinkGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16);
+            const sinkMat = new THREE.MeshPhysicalMaterial({ color: 0xbbbbbb, metalness: 0.8, roughness: 0.1 });
+            const sink = new THREE.Mesh(sinkGeo, sinkMat);
+            sink.position.set(-1.5, counterH + 0.05, 1.0);
+            interiorGroup.add(sink);
+            // Cooktop (2 burner rings)
+            [[-2.1, 1.35], [-1.9, 1.45]].forEach(([x, z]) => {
+                const burner = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.08, 0.015, 8, 24),
+                    new THREE.MeshBasicMaterial({ color: 0x333333 })
+                );
+                burner.position.set(x, counterH + 0.05, z);
+                burner.rotation.x = Math.PI / 2;
+                interiorGroup.add(burner);
+            });
+            // Small fridge
+            const fridge = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.85, 0.5),
+                new THREE.MeshPhysicalMaterial({ color: 0xcccccc, metalness: 0.3, roughness: 0.2 })
+            );
+            fridge.position.set(-2.3, 0.425, 0.5);
+            interiorGroup.add(fridge);
+
+            // === BATHROOM — back-right sector ===
+            // Shower cabin (corner, against wall)
+            const showerW = 0.8;
+            // Shower base
+            const showerBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.45, 0.45, 0.05, 24),
+                new THREE.MeshPhysicalMaterial({ color: 0xdddddd, roughness: 0.2, metalness: 0.1 })
+            );
+            showerBase.position.set(1.6, 0.025, -1.6);
+            interiorGroup.add(showerBase);
+            // Shower glass wall (curved)
+            const showerGlass = createCurvedWall(
+                -Math.PI * 0.6, -Math.PI * 0.25, 2.0, 0.45, 0x78d4ff, 0.15
+            );
+            showerGlass.position.set(1.6, 0, -1.6);
+            interiorGroup.add(showerGlass);
+            // Shower head (small sphere)
+            const showerHead = new THREE.Mesh(
+                new THREE.SphereGeometry(0.06, 12, 12),
+                new THREE.MeshPhysicalMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.1 })
+            );
+            showerHead.position.set(1.6, 1.9, -1.6);
+            interiorGroup.add(showerHead);
+            // Shower pipe
+            const pipe = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.015, 0.015, 1.9, 8),
+                new THREE.MeshPhysicalMaterial({ color: 0xbbbbbb, metalness: 0.7 })
+            );
+            pipe.position.set(1.85, 0.95, -1.85);
+            interiorGroup.add(pipe);
+
+            // Toilet (against wall)
+            const toiletBase = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.4, 0.55),
+                new THREE.MeshPhysicalMaterial({ color: 0xeeeeee, roughness: 0.3 })
+            );
+            toiletBase.position.set(2.0, 0.2, -0.7);
+            interiorGroup.add(toiletBase);
+            // Toilet tank
+            const toiletTank = new THREE.Mesh(
+                new THREE.BoxGeometry(0.38, 0.35, 0.15),
+                new THREE.MeshPhysicalMaterial({ color: 0xeeeeee, roughness: 0.3 })
+            );
+            toiletTank.position.set(2.0, 0.575, -0.9);
+            interiorGroup.add(toiletTank);
+
+            // Bathroom sink (wall-mounted)
+            const bSink = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.08, 0.35),
+                new THREE.MeshPhysicalMaterial({ color: 0xeeeeee, roughness: 0.2, metalness: 0.1 })
+            );
+            bSink.position.set(1.9, 0.8, -0.1);
+            interiorGroup.add(bSink);
+            // Bathroom mirror
+            const mirror = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.5, 0.02),
+                new THREE.MeshPhysicalMaterial({ color: 0xbbddee, roughness: 0.0, metalness: 0.8 })
+            );
+            mirror.position.set(2.15, 1.3, -0.1);
+            mirror.rotation.y = -Math.PI * 0.05;
+            interiorGroup.add(mirror);
+
+            // Bathroom partition wall (separates bathroom from living area)
+            const bathWall = createCurvedWall(
+                -Math.PI * 0.15, Math.PI * 0.1, 2.0, innerR * 0.55, 0x7a6a55, 0.6
+            );
+            interiorGroup.add(bathWall);
+
+            // === LIVING / DESK — center area ===
+            // Desk against right side
+            const deskGeo = new THREE.BoxGeometry(1.0, 0.04, 0.55);
+            const desk = new THREE.Mesh(deskGeo, new THREE.MeshPhysicalMaterial({ color: 0x8B7355, roughness: 0.4 }));
+            desk.position.set(0.8, 0.74, 0.5);
             interiorGroup.add(desk);
-
             // Desk legs
-            const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8);
-            const legMat = new THREE.MeshPhysicalMaterial({ color: 0x444444 });
-            [[-0.4, -0.2], [0.4, -0.2], [-0.4, 0.2], [0.4, 0.2]].forEach(([x, z]) => {
+            const legGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.72, 8);
+            const legMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, metalness: 0.5 });
+            [[-0.45, -0.22], [0.45, -0.22], [-0.45, 0.22], [0.45, 0.22]].forEach(([dx, dz]) => {
                 const leg = new THREE.Mesh(legGeo, legMat);
-                leg.position.set(1.5 + x, 0.375, z);
+                leg.position.set(0.8 + dx, 0.36, 0.5 + dz);
                 interiorGroup.add(leg);
             });
+            // Chair
+            const chairSeat = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.04, 0.4),
+                new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.5 })
+            );
+            chairSeat.position.set(0.8, 0.42, 0.95);
+            interiorGroup.add(chairSeat);
+            const chairBack = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.4, 0.04),
+                new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.5 })
+            );
+            chairBack.position.set(0.8, 0.62, 1.15);
+            interiorGroup.add(chairBack);
+            // Chair legs
+            [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]].forEach(([dx, dz]) => {
+                const cl = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.015, 0.015, 0.42, 6),
+                    legMat
+                );
+                cl.position.set(0.8 + dx, 0.21, 0.95 + dz);
+                interiorGroup.add(cl);
+            });
 
-            // Kitchen area (yellow)
-            const kitchenGeo = new THREE.BoxGeometry(0.3, 0.8, 1.5);
-            const kitchenMat = new THREE.MeshPhysicalMaterial({ color: 0x8a7a3a, roughness: 0.5, metalness: 0.2 });
-            const kitchen = new THREE.Mesh(kitchenGeo, kitchenMat);
-            kitchen.position.set(-0.5, 0.4, 2.2);
-            interiorGroup.add(kitchen);
+            // === SALON — front-right, sofa facing center ===
+            // Sofa (low, wide, against front-right wall)
+            const sofaBase = new THREE.Mesh(
+                new THREE.BoxGeometry(1.6, 0.35, 0.7),
+                new THREE.MeshPhysicalMaterial({ color: 0x4a4a4a, roughness: 0.7 })
+            );
+            sofaBase.position.set(1.2, 0.175, 1.8);
+            sofaBase.rotation.y = -Math.PI * 0.2;
+            interiorGroup.add(sofaBase);
+            // Sofa back
+            const sofaBack = new THREE.Mesh(
+                new THREE.BoxGeometry(1.6, 0.35, 0.12),
+                new THREE.MeshPhysicalMaterial({ color: 0x4a4a4a, roughness: 0.7 })
+            );
+            sofaBack.position.set(1.45, 0.42, 2.1);
+            sofaBack.rotation.y = -Math.PI * 0.2;
+            interiorGroup.add(sofaBack);
+            // Sofa cushions
+            const cushMat = new THREE.MeshPhysicalMaterial({ color: 0x607860, roughness: 0.8 });
+            const cush1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.55), cushMat);
+            cush1.position.set(0.85, 0.39, 1.7);
+            cush1.rotation.y = -Math.PI * 0.2;
+            interiorGroup.add(cush1);
+            const cush2 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.55), cushMat);
+            cush2.position.set(1.55, 0.39, 1.85);
+            cush2.rotation.y = -Math.PI * 0.2;
+            interiorGroup.add(cush2);
 
-            // Window light from inside
-            const wLight = new THREE.SpotLight(0x78d4ff, 0.5, 10, Math.PI * 0.3);
-            wLight.position.set(2, 1.5, 0);
+            // Coffee table
+            const coffeeTable = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.3, 0.3, 0.04, 24),
+                new THREE.MeshPhysicalMaterial({ color: 0x8B7355, roughness: 0.4 })
+            );
+            coffeeTable.position.set(0.5, 0.35, 1.5);
+            interiorGroup.add(coffeeTable);
+            // Coffee table leg
+            const ctLeg = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.04, 0.06, 0.33, 12),
+                new THREE.MeshPhysicalMaterial({ color: 0x555555, metalness: 0.4 })
+            );
+            ctLeg.position.set(0.5, 0.165, 1.5);
+            interiorGroup.add(ctLeg);
+
+            // Window light (from panoramic window area, front-right)
+            const wLight = new THREE.SpotLight(0x78d4ff, 0.4, 8, Math.PI * 0.4);
+            wLight.position.set(1, 2.2, 2.5);
             wLight.target.position.set(0, 0, 0);
             interiorGroup.add(wLight);
             interiorGroup.add(wLight.target);
+            // Warm overhead light
+            const ceilingLight = new THREE.PointLight(0xffeedd, 0.3, 6);
+            ceilingLight.position.set(0, 2.5, 0);
+            interiorGroup.add(ceilingLight);
 
             interiorGroup.visible = false;
             scene.add(interiorGroup);
         })();
 
-        // ===== FLOORPLAN VIEW =====
+        // ===================================================================
+        // ===== FLOORPLAN VIEW — Clean top-down architectural plan =====
+        // ===================================================================
         (function buildFloorplan() {
-            const R = 2.75; // outer radius
-            const wallR = 2.65; // inner wall radius
-
-            // Outer wall ring
-            const outerRing = new THREE.Mesh(
-                new THREE.RingGeometry(R, R + 0.06, 64),
-                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-            );
-            outerRing.rotation.x = -Math.PI / 2;
-            floorplanGroup.add(outerRing);
-
-            // Inner wall ring
-            const innerRing = new THREE.Mesh(
-                new THREE.RingGeometry(wallR, wallR + 0.03, 64),
-                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
-            );
-            innerRing.rotation.x = -Math.PI / 2;
-            floorplanGroup.add(innerRing);
+            const R = 2.8;
+            const wallW = 0.06;
 
             // Floor fill
             const floorFill = new THREE.Mesh(
-                new THREE.CircleGeometry(wallR, 64),
-                new THREE.MeshBasicMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide })
+                new THREE.CircleGeometry(R, 64),
+                new THREE.MeshBasicMaterial({ color: 0x141414, side: THREE.DoubleSide })
             );
             floorFill.rotation.x = -Math.PI / 2;
             floorFill.position.y = -0.01;
             floorplanGroup.add(floorFill);
 
-            // --- Zone layout (top-down, z+ = south/entry) ---
-            // Organized as clear, non-overlapping sectors:
-            //   Back (north): Couchage (wide, top)
-            //   Left: Cuisine
-            //   Right: Salle d'eau
-            //   Center: Bureau / Espace de vie
-            //   Front: Salon (near entry)
-            //   Small: Local technique (left-front)
-
-            const zones = [
-                { name: 'COUCHAGE',    area: '6.8m²', color: 0xc896ff, startAngle: Math.PI * 0.65, endAngle: Math.PI * 1.35, inner: 0.35 },
-                { name: 'CUISINE',     area: '4.5m²', color: 0xffc832, startAngle: Math.PI * 1.35, endAngle: Math.PI * 1.7,  inner: 0.3 },
-                { name: 'SALLE D\'EAU',area: '3.2m²', color: 0x64b4ff, startAngle: Math.PI * 0.3,  endAngle: Math.PI * 0.65, inner: 0.4 },
-                { name: 'VIE/BUREAU',  area: '8.3m²', color: 0xa8ff78, startAngle: Math.PI * 1.7,  endAngle: Math.PI * 0.05, inner: 0.0 },
-                { name: 'SALON',       area: '5.2m²', color: 0x7acc5a, startAngle: Math.PI * 0.05, endAngle: Math.PI * 0.3,  inner: 0.0 },
-                { name: 'TECH',        area: '',      color: 0x888888, startAngle: Math.PI * 1.35, endAngle: Math.PI * 1.7,  inner: 0.7 },
-            ];
-
-            // Helper to create a sector shape
-            function createSector(startA, endA, outerR, innerR) {
-                const shape = new THREE.Shape();
-                const segs = 24;
-                // Handle wrap-around (e.g., startAngle > endAngle)
-                let eA = endA;
-                if (eA <= startA) eA += Math.PI * 2;
-                // Outer arc
-                for (let i = 0; i <= segs; i++) {
-                    const a = startA + (i / segs) * (eA - startA);
-                    const x = outerR * Math.cos(a);
-                    const z = outerR * Math.sin(a);
-                    if (i === 0) shape.moveTo(x, z);
-                    else shape.lineTo(x, z);
-                }
-                // Inner arc (reverse)
-                for (let i = segs; i >= 0; i--) {
-                    const a = startA + (i / segs) * (eA - startA);
-                    shape.lineTo(innerR * Math.cos(a), innerR * Math.sin(a));
-                }
-                shape.closePath();
-                return shape;
-            }
-
-            zones.forEach(zone => {
-                const shape = createSector(zone.startAngle, zone.endAngle, wallR, wallR * zone.inner);
-                const geo = new THREE.ShapeGeometry(shape);
-
-                // Filled zone
-                const mat = new THREE.MeshBasicMaterial({
-                    color: zone.color,
-                    transparent: true,
-                    opacity: 0.12,
-                    side: THREE.DoubleSide,
-                });
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.rotation.x = -Math.PI / 2;
-                mesh.position.y = 0.005;
-                floorplanGroup.add(mesh);
-
-                // Zone border
-                const edgeGeo = new THREE.EdgesGeometry(geo);
-                const edgeMat = new THREE.LineBasicMaterial({ color: zone.color, transparent: true, opacity: 0.5 });
-                const edges = new THREE.LineSegments(edgeGeo, edgeMat);
-                edges.rotation.x = -Math.PI / 2;
-                edges.position.y = 0.005;
-                floorplanGroup.add(edges);
-            });
-
-            // --- Partition walls (lines separating zones) ---
-            function addWall(x1, z1, x2, z2, color) {
-                const wallGeo = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(x1, 0.01, z1),
-                    new THREE.Vector3(x2, 0.01, z2)
-                ]);
-                const wallMat = new THREE.LineBasicMaterial({ color: color || 0xffffff, transparent: true, opacity: 0.35, linewidth: 2 });
-                floorplanGroup.add(new THREE.Line(wallGeo, wallMat));
-            }
-
-            // Partition lines at zone boundaries (radial lines)
-            const partitionAngles = [
-                { angle: Math.PI * 0.05, color: 0xa8ff78 },
-                { angle: Math.PI * 0.3,  color: 0x64b4ff },
-                { angle: Math.PI * 0.65, color: 0xc896ff },
-                { angle: Math.PI * 1.35, color: 0xffc832 },
-                { angle: Math.PI * 1.7,  color: 0xa8ff78 },
-            ];
-            partitionAngles.forEach(p => {
-                const innerR = 0.15;
-                addWall(
-                    innerR * Math.cos(p.angle), innerR * Math.sin(p.angle),
-                    wallR * Math.cos(p.angle), wallR * Math.sin(p.angle),
-                    p.color
-                );
-            });
-
-            // Tech room inner curved wall
-            const techWallGeo = new THREE.BufferGeometry();
-            const techPts = [];
-            for (let i = 0; i <= 16; i++) {
-                const a = Math.PI * 1.35 + (i / 16) * (Math.PI * 1.7 - Math.PI * 1.35);
-                techPts.push(new THREE.Vector3(wallR * 0.7 * Math.cos(a), 0.01, wallR * 0.7 * Math.sin(a)));
-            }
-            techWallGeo.setFromPoints(techPts);
-            const techWallMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.4 });
-            floorplanGroup.add(new THREE.Line(techWallGeo, techWallMat));
-
-            // --- Furniture indicators ---
-            // Bed in Couchage zone (back, center)
-            const bedGeo = new THREE.PlaneGeometry(0.9, 0.55);
-            const bedMat = new THREE.MeshBasicMaterial({ color: 0xc896ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
-            const bed = new THREE.Mesh(bedGeo, bedMat);
-            bed.rotation.x = -Math.PI / 2;
-            bed.position.set(-1.3 * Math.cos(Math.PI), 0.01, -1.3 * Math.sin(Math.PI));
-            bed.position.set(0, 0.01, -1.5);
-            floorplanGroup.add(bed);
-            // Bed outline
-            const bedEdges = new THREE.LineSegments(
-                new THREE.EdgesGeometry(bedGeo),
-                new THREE.LineBasicMaterial({ color: 0xc896ff, transparent: true, opacity: 0.5 })
+            // Outer wall ring
+            const outerRing = new THREE.Mesh(
+                new THREE.RingGeometry(R, R + wallW, 64),
+                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
             );
-            bedEdges.rotation.x = -Math.PI / 2;
-            bedEdges.position.copy(bed.position);
-            floorplanGroup.add(bedEdges);
+            outerRing.rotation.x = -Math.PI / 2;
+            floorplanGroup.add(outerRing);
 
-            // Desk in Bureau zone
-            const deskGeo = new THREE.PlaneGeometry(0.6, 0.3);
-            const deskMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
-            const desk = new THREE.Mesh(deskGeo, deskMat);
-            desk.rotation.x = -Math.PI / 2;
-            desk.position.set(1.6, 0.01, 0.8);
-            floorplanGroup.add(desk);
-            const deskEdges = new THREE.LineSegments(
-                new THREE.EdgesGeometry(deskGeo),
-                new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.5 })
-            );
-            deskEdges.rotation.x = -Math.PI / 2;
-            deskEdges.position.copy(desk.position);
-            floorplanGroup.add(deskEdges);
-
-            // Kitchen counter in Cuisine zone
-            const kitchenPts = [];
-            for (let i = 0; i <= 12; i++) {
-                const a = Math.PI * 1.4 + (i / 12) * (Math.PI * 1.65 - Math.PI * 1.4);
-                kitchenPts.push(new THREE.Vector3(wallR * 0.85 * Math.cos(a), 0.01, wallR * 0.85 * Math.sin(a)));
-            }
-            const kitchenGeo = new THREE.BufferGeometry().setFromPoints(kitchenPts);
-            const kitchenMat = new THREE.LineBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.6, linewidth: 3 });
-            floorplanGroup.add(new THREE.Line(kitchenGeo, kitchenMat));
-
-            // Shower in Salle d'eau (small circle)
-            const showerGeo = new THREE.RingGeometry(0.2, 0.25, 16);
-            const showerMat = new THREE.MeshBasicMaterial({ color: 0x64b4ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
-            const shower = new THREE.Mesh(showerGeo, showerMat);
-            shower.rotation.x = -Math.PI / 2;
-            shower.position.set(1.8, 0.01, -1.2);
-            floorplanGroup.add(shower);
-
-            // Sofa in Salon (curved line)
-            const sofaPts = [];
-            for (let i = 0; i <= 10; i++) {
-                const a = Math.PI * 0.1 + (i / 10) * (Math.PI * 0.25 - Math.PI * 0.1);
-                sofaPts.push(new THREE.Vector3(wallR * 0.7 * Math.cos(a), 0.01, wallR * 0.7 * Math.sin(a)));
-            }
-            const sofaGeo = new THREE.BufferGeometry().setFromPoints(sofaPts);
-            const sofaMat = new THREE.LineBasicMaterial({ color: 0x7acc5a, transparent: true, opacity: 0.6, linewidth: 3 });
-            floorplanGroup.add(new THREE.Line(sofaGeo, sofaMat));
-
-            // --- Zone labels (using sprite-like flat text via canvas) ---
-            function createLabel(text, x, z, color) {
-                const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 64;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = 'transparent';
-                ctx.fillRect(0, 0, 256, 64);
-                ctx.font = 'bold 22px Inter, sans-serif';
-                ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(text, 128, 28);
-                // Area subtitle
-                const areaText = zones.find(z => z.name === text);
-                if (areaText && areaText.area) {
-                    ctx.font = '16px Inter, sans-serif';
-                    ctx.globalAlpha = 0.6;
-                    ctx.fillText(areaText.area, 128, 50);
-                }
-
-                const texture = new THREE.CanvasTexture(canvas);
-                texture.needsUpdate = true;
-                const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
-                const sprite = new THREE.Sprite(spriteMat);
-                sprite.position.set(x, 0.1, z);
-                sprite.scale.set(1.2, 0.3, 1);
-                return sprite;
-            }
-
-            // Place labels at zone centers
-            const labelData = [
-                { name: 'COUCHAGE',     color: 0xc896ff, x: 0,    z: -1.5 },
-                { name: 'CUISINE',      color: 0xffc832, x: -1.5, z: 1.0  },
-                { name: 'SALLE D\'EAU', color: 0x64b4ff, x: 1.8,  z: -0.8 },
-                { name: 'VIE/BUREAU',   color: 0xa8ff78, x: 1.2,  z: 1.2  },
-                { name: 'SALON',        color: 0x7acc5a, x: 2.0,  z: 0.2  },
-                { name: 'TECH',         color: 0x888888, x: -1.8, z: 1.6  },
-            ];
-            labelData.forEach(l => {
-                floorplanGroup.add(createLabel(l.name, l.x, l.z, l.color));
-            });
-
-            // --- Entry marker and label ---
-            const entryGeo = new THREE.SphereGeometry(0.08, 16, 16);
-            const entryMat = new THREE.MeshBasicMaterial({ color: 0xa8ff78 });
-            const entry = new THREE.Mesh(entryGeo, entryMat);
-            entry.position.set(0, 0.02, wallR);
-            floorplanGroup.add(entry);
-
-            // Entry arrow
-            const arrowPts = [
-                new THREE.Vector3(-0.15, 0.02, wallR + 0.3),
-                new THREE.Vector3(0, 0.02, wallR + 0.05),
-                new THREE.Vector3(0.15, 0.02, wallR + 0.3),
-            ];
-            const arrowGeo = new THREE.BufferGeometry().setFromPoints(arrowPts);
-            const arrowMat = new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.6 });
-            floorplanGroup.add(new THREE.Line(arrowGeo, arrowMat));
-
-            floorplanGroup.add(createLabel('ENTRÉE', 0, wallR + 0.55, 0xa8ff78));
-
-            // --- Dimension lines ---
-            // Horizontal dimension
-            const dimPts1 = [new THREE.Vector3(-R, 0.02, R + 0.5), new THREE.Vector3(R, 0.02, R + 0.5)];
-            const dimGeo1 = new THREE.BufferGeometry().setFromPoints(dimPts1);
-            const dimMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
-            floorplanGroup.add(new THREE.Line(dimGeo1, dimMat));
-            // Dimension ticks
-            [[-R, R + 0.3, -R, R + 0.7], [R, R + 0.3, R, R + 0.7]].forEach(([x1, z1, x2, z2]) => {
-                const tickGeo = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(x1, 0.02, z1), new THREE.Vector3(x2, 0.02, z2)
-                ]);
-                floorplanGroup.add(new THREE.Line(tickGeo, dimMat));
-            });
-            floorplanGroup.add(createLabel('6.0m', 0, R + 0.85, 0x666666));
-
-            // --- Grid cross (subtle) ---
+            // Cross-hair grid
             const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.04 });
-            [[[0, 0.005, -R], [0, 0.005, R]], [[-R, 0.005, 0], [R, 0.005, 0]]].forEach(([a, b]) => {
+            [[[0, 0, -R], [0, 0, R]], [[-R, 0, 0], [R, 0, 0]]].forEach(([a, b]) => {
                 const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
                 floorplanGroup.add(new THREE.Line(g, gridMat));
             });
+
+            // === ZONES (rectangular/organic partitions matching interior layout) ===
+            // Layout: North = z-, South = z+ (entry)
+            // Back-left: Bedroom (purple)
+            // Left-front: Kitchen (yellow)
+            // Back-right: Bathroom (blue)
+            // Center: Living/Desk (green)
+            // Front-right: Salon (light green)
+            // Back-center-left: Tech (grey)
+
+            // Helper: filled rectangle zone (flat on XZ plane)
+            function addZoneRect(x, z, w, d, rotation, color, opacity) {
+                const geo = new THREE.PlaneGeometry(w, d);
+                const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: opacity || 0.1, side: THREE.DoubleSide });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.rotation.z = rotation || 0;
+                mesh.position.set(x, 0.005, z);
+                floorplanGroup.add(mesh);
+                // Border
+                const edge = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(geo),
+                    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 })
+                );
+                edge.rotation.x = -Math.PI / 2;
+                edge.rotation.z = rotation || 0;
+                edge.position.set(x, 0.005, z);
+                floorplanGroup.add(edge);
+            }
+
+            // Partition wall line helper
+            function addPartition(x1, z1, x2, z2, color) {
+                const geo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x1, 0.01, z1),
+                    new THREE.Vector3(x2, 0.01, z2)
+                ]);
+                floorplanGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: color || 0xffffff, transparent: true, opacity: 0.4 })));
+            }
+
+            // --- Bedroom zone (back-left) ---
+            addZoneRect(-1.1, -1.4, 2.2, 1.8, Math.PI * 0.15, 0xc896ff, 0.08);
+            // Bed outline
+            const bedPlan = new THREE.Mesh(
+                new THREE.PlaneGeometry(1.6, 2.0),
+                new THREE.MeshBasicMaterial({ color: 0xc896ff, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
+            );
+            bedPlan.rotation.x = -Math.PI / 2;
+            bedPlan.rotation.z = Math.PI * 0.15;
+            bedPlan.position.set(-1.1, 0.01, -1.4);
+            floorplanGroup.add(bedPlan);
+            const bedEdge = new THREE.LineSegments(
+                new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.6, 2.0)),
+                new THREE.LineBasicMaterial({ color: 0xc896ff, transparent: true, opacity: 0.5 })
+            );
+            bedEdge.rotation.x = -Math.PI / 2;
+            bedEdge.rotation.z = Math.PI * 0.15;
+            bedEdge.position.set(-1.1, 0.01, -1.4);
+            floorplanGroup.add(bedEdge);
+
+            // --- Kitchen zone (left-front) ---
+            addZoneRect(-1.7, 1.1, 1.5, 1.4, Math.PI * 0.3, 0xffc832, 0.08);
+            // Counter along wall (L-shape represented by thick line)
+            const counterPts = [];
+            for (let i = 0; i <= 12; i++) {
+                const a = Math.PI * 0.55 + (i / 12) * Math.PI * 0.35;
+                counterPts.push(new THREE.Vector3(R * 0.85 * Math.cos(a), 0.01, R * 0.85 * Math.sin(a)));
+            }
+            floorplanGroup.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(counterPts),
+                new THREE.LineBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.6 })
+            ));
+            // Sink circle
+            const sinkPlan = new THREE.Mesh(
+                new THREE.RingGeometry(0.08, 0.12, 16),
+                new THREE.MeshBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+            );
+            sinkPlan.rotation.x = -Math.PI / 2;
+            sinkPlan.position.set(-1.5, 0.015, 1.0);
+            floorplanGroup.add(sinkPlan);
+            // Burners
+            [[-2.1, 1.35], [-1.9, 1.45]].forEach(([x, z]) => {
+                const b = new THREE.Mesh(
+                    new THREE.RingGeometry(0.06, 0.08, 12),
+                    new THREE.MeshBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+                );
+                b.rotation.x = -Math.PI / 2;
+                b.position.set(x, 0.015, z);
+                floorplanGroup.add(b);
+            });
+
+            // --- Bathroom zone (back-right) ---
+            addZoneRect(1.8, -1.0, 1.2, 1.8, 0, 0x64b4ff, 0.08);
+            // Shower circle
+            const showerPlan = new THREE.Mesh(
+                new THREE.RingGeometry(0.3, 0.35, 24),
+                new THREE.MeshBasicMaterial({ color: 0x64b4ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+            );
+            showerPlan.rotation.x = -Math.PI / 2;
+            showerPlan.position.set(1.6, 0.015, -1.6);
+            floorplanGroup.add(showerPlan);
+            // Toilet
+            const toiletPlan = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.4, 0.5),
+                new THREE.MeshBasicMaterial({ color: 0x64b4ff, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
+            );
+            toiletPlan.rotation.x = -Math.PI / 2;
+            toiletPlan.position.set(2.0, 0.015, -0.7);
+            floorplanGroup.add(toiletPlan);
+            // Sink rectangle
+            const bSinkPlan = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.5, 0.3),
+                new THREE.MeshBasicMaterial({ color: 0x64b4ff, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+            );
+            bSinkPlan.rotation.x = -Math.PI / 2;
+            bSinkPlan.position.set(1.9, 0.015, -0.1);
+            floorplanGroup.add(bSinkPlan);
+
+            // --- Living/Bureau zone (center) ---
+            addZoneRect(0.5, 0.5, 1.5, 1.5, 0, 0xa8ff78, 0.05);
+            // Desk rectangle
+            const deskPlan = new THREE.LineSegments(
+                new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.0, 0.55)),
+                new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.5 })
+            );
+            deskPlan.rotation.x = -Math.PI / 2;
+            deskPlan.position.set(0.8, 0.015, 0.5);
+            floorplanGroup.add(deskPlan);
+            // Chair circle
+            const chairPlan = new THREE.Mesh(
+                new THREE.RingGeometry(0.12, 0.16, 12),
+                new THREE.MeshBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+            );
+            chairPlan.rotation.x = -Math.PI / 2;
+            chairPlan.position.set(0.8, 0.015, 0.95);
+            floorplanGroup.add(chairPlan);
+
+            // --- Salon zone (front-right) ---
+            addZoneRect(1.0, 1.8, 1.8, 1.0, -Math.PI * 0.2, 0x7acc5a, 0.06);
+            // Sofa line
+            const sofaPts = [];
+            for (let i = 0; i <= 8; i++) {
+                const t = i / 8;
+                sofaPts.push(new THREE.Vector3(0.4 + t * 1.6, 0.01, 1.65 + t * 0.3));
+            }
+            floorplanGroup.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(sofaPts),
+                new THREE.LineBasicMaterial({ color: 0x7acc5a, transparent: true, opacity: 0.5 })
+            ));
+            // Coffee table circle
+            const ctPlan = new THREE.Mesh(
+                new THREE.RingGeometry(0.18, 0.22, 16),
+                new THREE.MeshBasicMaterial({ color: 0x7acc5a, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+            );
+            ctPlan.rotation.x = -Math.PI / 2;
+            ctPlan.position.set(0.5, 0.015, 1.5);
+            floorplanGroup.add(ctPlan);
+
+            // --- Tech zone (back-center) ---
+            addZoneRect(0, -2.2, 1.0, 0.6, 0, 0x888888, 0.06);
+
+            // --- Partition walls ---
+            // Bedroom partition
+            addPartition(-0.3, -0.4, -1.8, -0.1, 0xc896ff);
+            // Bathroom partition
+            addPartition(1.1, 0.0, 1.1, -2.0, 0x64b4ff);
+            addPartition(1.1, 0.0, 2.2, 0.3, 0x64b4ff);
+            // Kitchen partition
+            addPartition(-0.8, 0.3, -0.8, 1.8, 0xffc832);
+
+            // --- Door opening (gap in outer wall, front center) ---
+            // Two small arcs to show the gap
+            const doorArcMat = new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.8 });
+            [[-0.45, 0.45]].forEach(([startX, endX]) => {
+                // Door symbol (arc showing swing)
+                const doorSwing = [];
+                for (let i = 0; i <= 12; i++) {
+                    const a = (i / 12) * Math.PI * 0.5;
+                    doorSwing.push(new THREE.Vector3(
+                        startX + 0.9 * Math.sin(a),
+                        0.015,
+                        R - 0.9 * (1 - Math.cos(a))
+                    ));
+                }
+                floorplanGroup.add(new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints(doorSwing),
+                    new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.3 })
+                ));
+            });
+
+            // Entry marker
+            const entryDot = new THREE.Mesh(
+                new THREE.SphereGeometry(0.06, 12, 12),
+                new THREE.MeshBasicMaterial({ color: 0xa8ff78 })
+            );
+            entryDot.position.set(0, 0.02, R);
+            floorplanGroup.add(entryDot);
+            // Arrow
+            const arrowPts = [
+                new THREE.Vector3(-0.15, 0.02, R + 0.3),
+                new THREE.Vector3(0, 0.02, R + 0.05),
+                new THREE.Vector3(0.15, 0.02, R + 0.3),
+            ];
+            floorplanGroup.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints(arrowPts),
+                new THREE.LineBasicMaterial({ color: 0xa8ff78, transparent: true, opacity: 0.6 })
+            ));
+
+            // --- Zone labels ---
+            floorplanGroup.add(createLabel('COUCHAGE', -1.1, 0.1, -1.4, 0xc896ff, 18));
+            floorplanGroup.add(createLabel('6.8m²', -1.1, 0.05, -1.0, 0xc896ff, 14));
+            floorplanGroup.add(createLabel('CUISINE', -1.7, 0.1, 1.1, 0xffc832, 18));
+            floorplanGroup.add(createLabel('4.5m²', -1.7, 0.05, 1.5, 0xffc832, 14));
+            floorplanGroup.add(createLabel("SALLE D'EAU", 1.8, 0.1, -1.0, 0x64b4ff, 16));
+            floorplanGroup.add(createLabel('3.2m²', 1.8, 0.05, -0.6, 0x64b4ff, 14));
+            floorplanGroup.add(createLabel('VIE/BUREAU', 0.5, 0.1, 0.5, 0xa8ff78, 18));
+            floorplanGroup.add(createLabel('8.3m²', 0.5, 0.05, 0.9, 0xa8ff78, 14));
+            floorplanGroup.add(createLabel('SALON', 1.0, 0.1, 1.8, 0x7acc5a, 18));
+            floorplanGroup.add(createLabel('5.2m²', 1.0, 0.05, 2.15, 0x7acc5a, 14));
+            floorplanGroup.add(createLabel('TECH', 0, 0.1, -2.2, 0x888888, 16));
+            floorplanGroup.add(createLabel('ENTRÉE', 0, 0.1, R + 0.5, 0xa8ff78, 18));
+
+            // Dimension line
+            const dimMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
+            floorplanGroup.add(new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-R, 0.02, R + 0.6), new THREE.Vector3(R, 0.02, R + 0.6)]),
+                dimMat
+            ));
+            [[-R, R + 0.4, -R, R + 0.8], [R, R + 0.4, R, R + 0.8]].forEach(([x1, z1, x2, z2]) => {
+                floorplanGroup.add(new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, 0.02, z1), new THREE.Vector3(x2, 0.02, z2)]),
+                    dimMat
+                ));
+            });
+            floorplanGroup.add(createLabel('6.0m', 0, 0.1, R + 1.0, 0x666666, 16));
 
             floorplanGroup.visible = false;
             scene.add(floorplanGroup);
         })();
 
+        // ===================================================================
         // ===== EXPLODED VIEW =====
+        // ===================================================================
         (function buildExploded() {
             const layers = [
-                { label: 'Coque ext.', color: 0xa8ff78, radius: 3.0, yOffset: 2.0, opacity: 0.2 },
-                { label: 'Isolation', color: 0x64b4ff, radius: 2.7, yOffset: 0, opacity: 0.15 },
-                { label: 'Coque int.', color: 0xc8a87a, radius: 2.4, yOffset: -2.0, opacity: 0.2 },
+                { label: 'Panneaux solaires', color: 0xffc832, radius: DOME_R + 0.02, yOff: 4.0, opacity: 0.35, detail: 1, isSolar: true },
+                { label: 'Coque extérieure', color: 0xa8ff78, radius: DOME_R, yOff: 2.0, opacity: 0.2, detail: 2 },
+                { label: 'Isolation aérogel', color: 0x64b4ff, radius: DOME_R - 0.08, yOff: 0, opacity: 0.15, detail: 1 },
+                { label: 'Coque intérieure', color: 0xc8a87a, radius: DOME_R - WALL_THICKNESS, yOff: -2.0, opacity: 0.2, detail: 2 },
             ];
 
-            layers.forEach(layer => {
-                // Half-sphere wireframe
-                const geo = new THREE.IcosahedronGeometry(layer.radius, 2);
-                const posArr = geo.attributes.position.array;
-                for (let i = 0; i < posArr.length; i += 3) {
-                    if (posArr[i + 1] < -0.05) posArr[i + 1] = -0.05;
+            layers.forEach((layer, idx) => {
+                if (layer.isSolar) {
+                    // Solar cap
+                    const solarGeo = new THREE.SphereGeometry(layer.radius, 24, 8, 0, Math.PI * 2, 0, Math.PI * 0.22);
+                    const solarMat = new THREE.MeshPhysicalMaterial({
+                        color: layer.color, transparent: true, opacity: layer.opacity,
+                        side: THREE.DoubleSide, metalness: 0.6, roughness: 0.2,
+                    });
+                    const solar = new THREE.Mesh(solarGeo, solarMat);
+                    solar.position.y = layer.yOff;
+                    explodedGroup.add(solar);
+                    // Grid lines on solar
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i / 8) * Math.PI * 2;
+                        const pts = [];
+                        for (let t = 0; t <= 10; t++) {
+                            const phi = (t / 10) * Math.PI * 0.22;
+                            const r = layer.radius + 0.01;
+                            pts.push(new THREE.Vector3(
+                                r * Math.sin(phi) * Math.cos(angle),
+                                layer.yOff + r * Math.cos(phi) - layer.radius,
+                                r * Math.sin(phi) * Math.sin(angle)
+                            ));
+                        }
+                        explodedGroup.add(new THREE.Line(
+                            new THREE.BufferGeometry().setFromPoints(pts),
+                            new THREE.LineBasicMaterial({ color: layer.color, transparent: true, opacity: 0.3 })
+                        ));
+                    }
+                } else {
+                    // Half-sphere wireframe
+                    const geo = new THREE.IcosahedronGeometry(layer.radius, layer.detail);
+                    const posArr = geo.attributes.position.array;
+                    for (let i = 0; i < posArr.length; i += 3) {
+                        if (posArr[i + 1] < -0.05) posArr[i + 1] = -0.05;
+                    }
+                    const wire = new THREE.WireframeGeometry(geo);
+                    explodedGroup.add(new THREE.LineSegments(wire,
+                        new THREE.LineBasicMaterial({ color: layer.color, transparent: true, opacity: layer.opacity })
+                    ));
+                    // Move wireframe to yOff
+                    explodedGroup.children[explodedGroup.children.length - 1].position.y = layer.yOff;
+
+                    // Translucent shell
+                    const shellGeo = new THREE.SphereGeometry(layer.radius - 0.02, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+                    const shell = new THREE.Mesh(shellGeo, new THREE.MeshPhysicalMaterial({
+                        color: layer.color, transparent: true, opacity: 0.05, side: THREE.DoubleSide,
+                    }));
+                    shell.position.y = layer.yOff;
+                    explodedGroup.add(shell);
                 }
 
-                const wire = new THREE.WireframeGeometry(geo);
-                const mat = new THREE.LineBasicMaterial({ color: layer.color, transparent: true, opacity: layer.opacity });
-                const lines = new THREE.LineSegments(wire, mat);
-                lines.position.y = layer.yOffset;
-                explodedGroup.add(lines);
-
-                // Transparent shell
-                const shellGeo = new THREE.SphereGeometry(layer.radius - 0.02, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-                const shellMat = new THREE.MeshPhysicalMaterial({
-                    color: layer.color,
-                    transparent: true,
-                    opacity: 0.05,
-                    side: THREE.DoubleSide,
-                });
-                const shell = new THREE.Mesh(shellGeo, shellMat);
-                shell.position.y = layer.yOffset;
-                explodedGroup.add(shell);
+                // Layer label
+                explodedGroup.add(createLabel(layer.label, -4, layer.yOff + 0.5, 0, layer.color, 16));
+                // Connecting dashed line
+                const dashPts = [
+                    new THREE.Vector3(-3.2, layer.yOff + 0.5, 0),
+                    new THREE.Vector3(-layer.radius - 0.2, layer.yOff + 0.3, 0),
+                ];
+                explodedGroup.add(new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints(dashPts),
+                    new THREE.LineBasicMaterial({ color: layer.color, transparent: true, opacity: 0.25 })
+                ));
             });
 
-            // Solar on top
-            const solarGeo = new THREE.SphereGeometry(3.05, 24, 8, 0, Math.PI * 2, 0, Math.PI * 0.18);
-            const solarMat = new THREE.MeshBasicMaterial({ color: 0xffc832, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
-            const solar = new THREE.Mesh(solarGeo, solarMat);
-            solar.position.y = 3.8;
-            explodedGroup.add(solar);
+            // Base platform at bottom
+            const basePlate = new THREE.Mesh(
+                new THREE.CylinderGeometry(3.2, 3.4, 0.2, 32),
+                new THREE.MeshPhysicalMaterial({ color: 0x444444, transparent: true, opacity: 0.3 })
+            );
+            basePlate.position.y = -3.5;
+            explodedGroup.add(basePlate);
+            explodedGroup.add(createLabel('Socle acier', -4, -3.2, 0, 0x888888, 16));
 
             explodedGroup.visible = false;
             scene.add(explodedGroup);
+        })();
+
+        // ===================================================================
+        // ===== REALISTIC VIEW — Textured surfaces =====
+        // ===================================================================
+        (function buildRealistic() {
+            // Create procedural textures using canvas
+
+            // Wood texture
+            function createWoodTexture() {
+                const c = document.createElement('canvas');
+                c.width = 512; c.height = 512;
+                const ctx = c.getContext('2d');
+                // Base wood color
+                ctx.fillStyle = '#8B7355';
+                ctx.fillRect(0, 0, 512, 512);
+                // Wood grain lines
+                for (let i = 0; i < 60; i++) {
+                    const y = Math.random() * 512;
+                    ctx.strokeStyle = `rgba(${100 + Math.random()*40}, ${80 + Math.random()*30}, ${50 + Math.random()*20}, ${0.15 + Math.random()*0.2})`;
+                    ctx.lineWidth = 0.5 + Math.random() * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    for (let x = 0; x < 512; x += 10) {
+                        ctx.lineTo(x, y + Math.sin(x * 0.02) * 3 + (Math.random() - 0.5) * 2);
+                    }
+                    ctx.stroke();
+                }
+                // Knots
+                for (let k = 0; k < 3; k++) {
+                    const kx = Math.random() * 512, ky = Math.random() * 512;
+                    const grad = ctx.createRadialGradient(kx, ky, 0, kx, ky, 15 + Math.random() * 10);
+                    grad.addColorStop(0, 'rgba(80, 55, 30, 0.5)');
+                    grad.addColorStop(1, 'rgba(80, 55, 30, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(kx - 25, ky - 25, 50, 50);
+                }
+                const tex = new THREE.CanvasTexture(c);
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                return tex;
+            }
+
+            // Floor wood texture (lighter, plank-like)
+            function createFloorTexture() {
+                const c = document.createElement('canvas');
+                c.width = 512; c.height = 512;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#A08B6B';
+                ctx.fillRect(0, 0, 512, 512);
+                // Planks
+                const plankH = 64;
+                for (let p = 0; p < 8; p++) {
+                    const py = p * plankH;
+                    ctx.strokeStyle = 'rgba(60, 45, 25, 0.3)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, py);
+                    ctx.lineTo(512, py);
+                    ctx.stroke();
+                    // Grain within plank
+                    for (let g = 0; g < 12; g++) {
+                        const gy = py + Math.random() * plankH;
+                        ctx.strokeStyle = `rgba(${90 + Math.random()*30}, ${75 + Math.random()*20}, ${45 + Math.random()*15}, ${0.1 + Math.random()*0.15})`;
+                        ctx.lineWidth = 0.3 + Math.random();
+                        ctx.beginPath();
+                        ctx.moveTo(0, gy);
+                        for (let x = 0; x < 512; x += 8) {
+                            ctx.lineTo(x, gy + Math.sin(x * 0.015 + p) * 2);
+                        }
+                        ctx.stroke();
+                    }
+                }
+                const tex = new THREE.CanvasTexture(c);
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(3, 3);
+                return tex;
+            }
+
+            // Concrete/composite exterior texture
+            function createExteriorTexture() {
+                const c = document.createElement('canvas');
+                c.width = 512; c.height = 512;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#3a3a35';
+                ctx.fillRect(0, 0, 512, 512);
+                for (let i = 0; i < 3000; i++) {
+                    const x = Math.random() * 512, y = Math.random() * 512;
+                    ctx.fillStyle = `rgba(${180 + Math.random()*40}, ${175 + Math.random()*40}, ${165 + Math.random()*30}, ${0.02 + Math.random()*0.04})`;
+                    ctx.fillRect(x, y, 1 + Math.random() * 3, 1 + Math.random() * 3);
+                }
+                const tex = new THREE.CanvasTexture(c);
+                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(2, 2);
+                return tex;
+            }
+
+            const woodTex = createWoodTexture();
+            const floorTex = createFloorTexture();
+            const extTex = createExteriorTexture();
+
+            const innerR = DOME_R - WALL_THICKNESS;
+
+            // Exterior dome (composite finish)
+            const extDomeGeo = new THREE.SphereGeometry(DOME_R, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+            const extDomeMat = new THREE.MeshPhysicalMaterial({
+                map: extTex,
+                roughness: 0.5,
+                metalness: 0.15,
+                side: THREE.FrontSide,
+            });
+            realisticGroup.add(new THREE.Mesh(extDomeGeo, extDomeMat));
+
+            // Inner dome (wood)
+            const inDomeGeo = new THREE.SphereGeometry(innerR, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+            const inDomeMat = new THREE.MeshPhysicalMaterial({
+                map: woodTex,
+                roughness: 0.7,
+                metalness: 0.02,
+                side: THREE.BackSide,
+            });
+            realisticGroup.add(new THREE.Mesh(inDomeGeo, inDomeMat));
+
+            // Wood floor
+            const floorGeo = new THREE.CircleGeometry(innerR - 0.1, 64);
+            const floorMesh = new THREE.Mesh(floorGeo, new THREE.MeshPhysicalMaterial({
+                map: floorTex, roughness: 0.7, metalness: 0.02,
+            }));
+            floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.position.y = 0.01;
+            realisticGroup.add(floorMesh);
+
+            // Panoramic window (glass with realistic reflection)
+            const winGeo = new THREE.SphereGeometry(DOME_R + 0.005, 48, 24,
+                -Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.15, Math.PI * 0.35);
+            const winMat = new THREE.MeshPhysicalMaterial({
+                color: 0xaaddff, transparent: true, opacity: 0.35,
+                roughness: 0.0, metalness: 0.15,
+                side: THREE.DoubleSide,
+            });
+            realisticGroup.add(new THREE.Mesh(winGeo, winMat));
+
+            // Solar panels on top (dark blue realistic)
+            const solarGeo = new THREE.SphereGeometry(DOME_R + 0.02, 32, 8, 0, Math.PI * 2, 0, Math.PI * 0.22);
+            const solarMat = new THREE.MeshPhysicalMaterial({
+                color: 0x1a1a40, roughness: 0.08, metalness: 0.9, side: THREE.DoubleSide,
+            });
+            realisticGroup.add(new THREE.Mesh(solarGeo, solarMat));
+
+            // Base platform
+            const baseGeo = new THREE.CylinderGeometry(3.2, 3.4, 0.35, 48);
+            const baseMat = new THREE.MeshPhysicalMaterial({ color: 0x333333, roughness: 0.35, metalness: 0.7 });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.position.y = -0.175;
+            realisticGroup.add(base);
+
+            // Door (realistic dark wood)
+            const doorGeo = new THREE.BoxGeometry(0.9, 2.0, 0.08);
+            const doorMat = new THREE.MeshPhysicalMaterial({ color: 0x4a3a2a, roughness: 0.6, metalness: 0.05 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, 1.0, DOME_R - 0.03);
+            realisticGroup.add(door);
+            // Handle
+            const handleGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.12, 8);
+            const handle = new THREE.Mesh(handleGeo, new THREE.MeshPhysicalMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.1 }));
+            handle.rotation.x = Math.PI / 2;
+            handle.position.set(0.3, 1.0, DOME_R + 0.02);
+            realisticGroup.add(handle);
+
+            // Step
+            const stepMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(1.4, 0.08, 0.6),
+                new THREE.MeshPhysicalMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.5 })
+            );
+            stepMesh.position.set(0, -0.04, DOME_R + 0.25);
+            realisticGroup.add(stepMesh);
+
+            // Interior furniture (simplified but textured)
+            // Bed
+            const mattressMat = new THREE.MeshPhysicalMaterial({ color: 0xf5f0e8, roughness: 0.95 });
+            const bedFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(1.6, 0.12, 2.0),
+                new THREE.MeshPhysicalMaterial({ map: woodTex, roughness: 0.6 })
+            );
+            bedFrame.position.set(-1.1, 0.06, -1.4);
+            bedFrame.rotation.y = Math.PI * 0.15;
+            realisticGroup.add(bedFrame);
+            const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.18, 1.9), mattressMat);
+            mattress.position.set(-1.1, 0.21, -1.4);
+            mattress.rotation.y = Math.PI * 0.15;
+            realisticGroup.add(mattress);
+
+            // Kitchen counter
+            const counterMat = new THREE.MeshPhysicalMaterial({ color: 0xaaa89a, roughness: 0.15, metalness: 0.35 });
+            const counter = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.85, 0.55), counterMat);
+            counter.position.set(-1.8, 0.425, 1.2);
+            counter.rotation.y = Math.PI * 0.3;
+            realisticGroup.add(counter);
+
+            // Sofa
+            const sofaMat = new THREE.MeshPhysicalMaterial({ color: 0x5a6a5a, roughness: 0.8 });
+            const sofa = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.35, 0.7), sofaMat);
+            sofa.position.set(1.2, 0.175, 1.8);
+            sofa.rotation.y = -Math.PI * 0.2;
+            realisticGroup.add(sofa);
+
+            // Desk
+            const deskMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(1.0, 0.04, 0.55),
+                new THREE.MeshPhysicalMaterial({ map: woodTex, roughness: 0.4 })
+            );
+            deskMesh.position.set(0.8, 0.74, 0.5);
+            realisticGroup.add(deskMesh);
+
+            // Ground
+            const groundGeo = new THREE.PlaneGeometry(24, 24);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a3a2a, roughness: 0.9 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.35;
+            realisticGroup.add(ground);
+
+            // Warm interior lighting
+            const warmInterior = new THREE.PointLight(0xffeedd, 0.5, 6);
+            warmInterior.position.set(0, 2.2, 0);
+            realisticGroup.add(warmInterior);
+            // Window light
+            const windowLight = new THREE.SpotLight(0x88bbff, 0.3, 8, Math.PI * 0.4);
+            windowLight.position.set(1, 2.5, 2.5);
+            windowLight.target.position.set(0, 0, 0);
+            realisticGroup.add(windowLight);
+            realisticGroup.add(windowLight.target);
+
+            realisticGroup.visible = false;
+            scene.add(realisticGroup);
         })();
 
         // ---- View switching ----
@@ -676,24 +1283,40 @@ document.addEventListener('DOMContentLoaded', () => {
             interiorGroup.visible = (view === 'interior');
             floorplanGroup.visible = (view === 'floorplan');
             explodedGroup.visible = (view === 'exploded');
+            realisticGroup.visible = (view === 'realistic');
 
-            // Camera transitions
+            // Adjust lighting per view
+            ambientLight.intensity = (view === 'interior') ? 0.15 : (view === 'realistic') ? 0.4 : 0.35;
+            dirLight.intensity = (view === 'floorplan') ? 0.2 : 0.9;
+
+            // Camera positions
             if (view === 'exterior') {
-                camera.position.set(0, 2, 8);
-                controls.target.set(0, 1, 0);
+                camera.position.set(0, 3, 8);
+                controls.target.set(0, 1.2, 0);
                 controls.maxPolarAngle = Math.PI * 0.85;
+                controls.autoRotate = true;
             } else if (view === 'interior') {
-                camera.position.set(0, 1.5, 0.5);
-                controls.target.set(0, 1.5, 0);
+                camera.position.set(0, 1.6, 0.3);
+                controls.target.set(0, 1.2, -0.5);
                 controls.maxPolarAngle = Math.PI;
+                controls.autoRotate = false;
             } else if (view === 'floorplan') {
                 camera.position.set(0, 8, 0.1);
                 controls.target.set(0, 0, 0);
                 controls.maxPolarAngle = Math.PI * 0.5;
+                controls.autoRotate = true;
+                controls.autoRotateSpeed = 0.3;
             } else if (view === 'exploded') {
-                camera.position.set(5, 3, 5);
+                camera.position.set(6, 3, 6);
                 controls.target.set(0, 0, 0);
                 controls.maxPolarAngle = Math.PI * 0.85;
+                controls.autoRotate = true;
+            } else if (view === 'realistic') {
+                camera.position.set(4, 3, 6);
+                controls.target.set(0, 1, 0);
+                controls.maxPolarAngle = Math.PI * 0.85;
+                controls.autoRotate = true;
+                controls.autoRotateSpeed = 0.4;
             }
             controls.update();
         }
@@ -703,23 +1326,12 @@ document.addEventListener('DOMContentLoaded', () => {
             requestAnimationFrame(animate);
             controls.update();
 
-            // LED ring subtle pulse for interior
+            // LED ring pulse for interior view
             if (currentView === 'interior') {
                 const time = performance.now() * 0.001;
                 interiorGroup.children.forEach(child => {
                     if (child.geometry && child.geometry.type === 'TorusGeometry' && child.material.opacity < 0.5) {
-                        child.material.opacity = 0.05 + Math.sin(time * 2) * 0.04;
-                    }
-                });
-            }
-
-            // Floating effect for exploded view
-            if (currentView === 'exploded') {
-                const time = performance.now() * 0.001;
-                let layerIndex = 0;
-                explodedGroup.children.forEach(child => {
-                    if (child.position.y !== 0 || child.type === 'LineSegments') {
-                        // subtle float
+                        child.material.opacity = 0.04 + Math.sin(time * 1.5) * 0.03;
                     }
                 });
             }
@@ -746,7 +1358,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 explorerBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 infoPanels.forEach(p => p.classList.remove('active'));
-                document.querySelector(`[data-panel="${view}"]`).classList.add('active');
+                const panel = document.querySelector(`[data-panel="${view}"]`);
+                if (panel) panel.classList.add('active');
             });
         });
     }
